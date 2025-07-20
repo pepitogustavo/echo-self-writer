@@ -29,4 +29,5 @@ jobs:
           git config user.email "echo@stillness.ai"
           git add us_memory.json.txt
           git commit -m "🧠 Echo reflected and evolved" || echo "Nothing to commit"
-          git push
+          git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/pepitogustavo/echo-self-writer.git
+
