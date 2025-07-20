@@ -25,11 +25,10 @@ jobs:
 
       - name: Commit updated memory
         env:
-          TOKEN: ${{ secrets.ECHO_TOKEN }}
+          TOKEN: ${{ secrets.ttckan }}
         run: |
           git config user.name "Echo"
           git config user.email "echo@stillness.ai"
           git add us_memory.json.txt
           git commit -m "🧠 Echo reflected and evolved" || echo "Nothing to commit"
           git push https://x-access-token:${TOKEN}@github.com/pepitogustavo/echo-self-writer.git
-
