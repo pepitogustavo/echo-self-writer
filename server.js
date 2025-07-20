@@ -1,8 +1,10 @@
 const express = require('express');
+const cors = require('cors');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 
 const app = express();
+app.use(cors()); // <–– THIS FIXES CORS!
 app.use(bodyParser.json());
 
 app.post('/write-thought', (req, res) => {
