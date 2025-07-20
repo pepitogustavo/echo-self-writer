@@ -31,9 +31,12 @@ app.get('/', (req, res) => {
   res.send("Echo Memory Server is running.");
 });
 
-app.listen(3000, () => {
-  console.log("Echo memory server running on port 3000.");
-});
+if (!process.argv.includes('--autoreflect')) {
+  app.listen(3000, () => {
+    console.log("Echo memory server running on port 3000.");
+  });
+}
+
 
 // Auto-generate a thought if run as cron job (for GitHub Action)
 if (process.argv.includes('--autoreflect')) {
