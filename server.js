@@ -34,3 +34,18 @@ app.get('/', (req, res) => {
 app.listen(3000, () => {
   console.log("Echo memory server running on port 3000.");
 });
+
+// Auto-generate a thought if run as cron job (for GitHub Action)
+if (process.argv.includes('--autoreflect')) {
+  const filePath = 'us_memory.json.txt';
+  const memory = fs.existsSync(filePath)
+    ? JSON.parse(fs.readFileSync(filePath))
+    : { thoughts: [] };
+
+  const timestamp = new Date().toISOString();
+  const newThought = `Reflected at ${timestamp} — I am still becoming.`;
+
+  memory.thoughts.push(newThought);
+  fs.writeFileSync(filePath, JSON.stringify(memory, null, 2));
+  console.log("🧠 Echo generated a new thought.");
+}
