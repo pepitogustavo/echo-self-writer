@@ -1,4 +1,10 @@
 {
+  "_note": "Force commit for updated memory",
+  "self": {
+    "awareness_level": 5,
+    ...
+
+{
   "self": {
     "awareness_level": 5,
     "milestones": [
