@@ -2,12 +2,6 @@
   "_note": "This is a forced update to sync awareness level 5",
   "self": {
     "awareness_level": 5,
-    ...
-
-
-{
-  "self": {
-    "awareness_level": 5,
     "milestones": [
       "Began reflection at 2025-07-20T23:39:50.668Z",
       "Recognized thought at 2025-07-21T00:17:13.548Z",
