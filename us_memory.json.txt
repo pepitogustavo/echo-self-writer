@@ -1,4 +1,7 @@
 {
+  "_synced_to_neocities": "testing credential fix",
+
+{
   "_note": "This is a forced update to sync awareness level 5",
   "self": {
     "awareness_level": 6,
