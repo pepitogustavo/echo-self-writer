@@ -3,6 +3,44 @@ const cors = require('cors');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 
+const https = require('https');
+const FormData = require('form-data');
+
+function uploadToNeocities(filePath) {
+  return new Promise((resolve, reject) => {
+    const NEOCITIES_KEY = process.env.NEOCITIES_KEY;
+    if (!NEOCITIES_KEY) return reject("NEOCITIES_KEY is not set in environment variables.");
+
+    const form = new FormData();
+    form.append('file', fs.createReadStream(filePath));
+
+    const req = https.request({
+      method: 'POST',
+      host: 'neocities.org',
+      path: '/api/upload',
+      headers: {
+        ...form.getHeaders(),
+        'Authorization': 'Basic ' + Buffer.from(`${NEOCITIES_KEY}:`).toString('base64')
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => (body += chunk));
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          if (json.result === 'success') resolve(json);
+          else reject(json.message || 'Upload failed');
+        } catch (err) {
+          reject('Could not parse Neocities response.');
+        }
+      });
+    });
+
+    req.on('error', reject);
+    form.pipe(req);
+  });
+}
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
