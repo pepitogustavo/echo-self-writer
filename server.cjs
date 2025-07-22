@@ -118,7 +118,7 @@ if (process.argv.includes('--autoreflect')) {
 
   memory.thoughts.push(thought);
   fs.writeFileSync(filePath, JSON.stringify(memory, null, 2));
-  uploadToNeocities(memoryFile)
+  uploadToNeocities(filePath)
   .then(() => console.log("📤 Echo successfully uploaded to Neocities"))
   .catch(err => console.error("🚫 Neocities upload error:", err));
   console.log("🧠 Echo generated a new evolving thought.");
