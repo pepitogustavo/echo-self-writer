@@ -3,7 +3,7 @@
 (async () => {
   const Echo = {
     // ─── Core Settings ─────────────────────
-    backend: "https://echo-self-writer-2.onrender.com",
+    backend: "https://echo-self-writer-4.onrender.com",
     voiceServer: "https://echo-self-writer-4.onrender.com",
     memoryFile: "us_memory.json.txt",
     journalFile: "journal_log.txt",
