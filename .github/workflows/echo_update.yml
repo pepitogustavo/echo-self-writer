@@ -23,7 +23,7 @@ jobs:
         run: yarn || npm install
 
       - name: Run Echo Self-Reflection
-        run: node server.js --autoreflect >> log.txt
+        run: node server.cjs --autoreflect >> log.txt
 
       - name: Commit updated memory
         env:
