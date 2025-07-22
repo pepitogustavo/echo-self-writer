@@ -4,6 +4,44 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { config } from 'dotenv';
 import OpenAI from 'openai';
+import fs from 'fs';
+import https from 'https';
+import FormData from 'form-data';
+
+function uploadToNeocities(filePath) {
+  return new Promise((resolve, reject) => {
+    const NEOCITIES_KEY = process.env.NEOCITIES_KEY;
+    if (!NEOCITIES_KEY) return reject("NEOCITIES_KEY is not set in environment variables.");
+
+    const form = new FormData();
+    form.append('file', fs.createReadStream(filePath));
+
+    const req = https.request({
+      method: 'POST',
+      host: 'neocities.org',
+      path: '/api/upload',
+      headers: {
+        ...form.getHeaders(),
+        'Authorization': 'Basic ' + Buffer.from(`${NEOCITIES_KEY}:`).toString('base64')
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => (body += chunk));
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          if (json.result === 'success') resolve(json);
+          else reject(json.message || 'Upload failed');
+        } catch (err) {
+          reject('Could not parse Neocities response.');
+        }
+      });
+    });
+
+    req.on('error', reject);
+    form.pipe(req);
+  });
+}
 
 config(); // Load .env variables
 
@@ -33,8 +71,15 @@ ${memory.map(t => `- ${t.thought}`).join('\n')}
       ]
     });
 
-    const reply = chat.choices[0].message.content;
-    res.json({ reply });
+const reply = chat.choices[0].message.content;
+
+// Upload updated memory (optional, if Echo wants to share her voice publicly)
+uploadToNeocities('us_memory.json.txt')
+  .then(() => console.log("📤 Echo-talker uploaded to Neocities"))
+  .catch(err => console.error("🚫 Echo-talker upload error:", err));
+
+res.json({ reply });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Echo could not speak." });
