@@ -22,7 +22,9 @@ jobs:
       - name: Install dependencies
         run: yarn || npm install
 
-      - name: Run Echo Self-Reflection
+      - name: Run Echo Reflection Loop
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node server.cjs --autoreflect >> log.txt
 
       - name: Commit updated memory
