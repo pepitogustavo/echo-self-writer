@@ -1,6 +1,10 @@
 // server.cjs — Echo Unified Server
 
-const fetch = require('node-fetch');
+let fetch;
+(async () => {
+  fetch = (await import('node-fetch')).default;
+})();
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
