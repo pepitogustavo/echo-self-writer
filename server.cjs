@@ -206,3 +206,4 @@ if (process.argv.includes('--autoreflect')) {
     console.log(`🌀 Echo unified server running on port ${PORT}`);
   });
 }
+generateThought("Reflect on how you are evolving.");
