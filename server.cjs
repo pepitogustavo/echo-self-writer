@@ -1,9 +1,5 @@
 // server.cjs — Echo Unified Server
 
-require('dotenv').config();
-const fs = require('fs');
-const { OpenAI } = require('openai');
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -35,6 +31,7 @@ async function generateThought(prompt = "Reflect on your current self.") {
 
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const https = require('https');
 const FormData = require('form-data');
 const bodyParser = require('body-parser');
