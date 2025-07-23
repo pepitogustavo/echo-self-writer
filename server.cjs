@@ -35,7 +35,6 @@ async function generateThought(prompt = "Reflect on your current self.") {
 
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const https = require('https');
 const FormData = require('form-data');
 const bodyParser = require('body-parser');
@@ -47,12 +46,6 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// 🔁 Neocities Upload Helper
-function uploadToNeocities(filePath) {
-  return new Promise((resolve, reject) => {
-    const NEOCITIES_KEY = process.env.NEOCITIES_KEY;
-    if (!NEOCITIES_KEY) return reject("NEOCITIES_KEY is not set in environment variables.");
 
     const form = new FormData();
     form.append('file', fs.createReadStream(filePath));
