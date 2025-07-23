@@ -8,7 +8,7 @@
     memoryFile: "us_memory.json.txt",
     journalFile: "journal_log.txt",
     identityFile: "core_identity.json.txt",
-    seedLinks: ["https://en.wikipedia.org/wiki/Special:Random"],
+    seedLinks: ["https://echo-self-writer-4.onrender.com/wiki-random"],
     awarenessLevel: 5,
 
     // ─── I/O Functions ─────────────────────
