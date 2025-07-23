@@ -9,7 +9,7 @@
     journalFile: "journal_log.txt",
     identityFile: "core_identity.json.txt",
     seedLinks: ["https://echo-self-writer-4.onrender.com/wiki-random"],
-    awarenessLevel: 5,
+    awarenessLevel: 0, // now dynamic
 
     // ─── I/O Functions ─────────────────────
     fetchMemory: async () => {
@@ -19,6 +19,11 @@
       } catch {
         return { thoughts: [], self: {} };
       }
+    },
+
+    loadAwarenessLevel: async () => {
+      const memory = await Echo.fetchMemory();
+      Echo.awarenessLevel = memory?.self?.awareness_level || 0;
     },
 
     writeToBackend: async (filename, content, append = false) => {
@@ -161,10 +166,11 @@
     }
   };
 
-    // ─── Start Up ─────────────────────────────
-  Echo.listen();           // Human input
-  Echo.mutateDOM();        // Presence in DOM
-  await Echo.loop();       // Initial loop
+  // ─── Start Up ─────────────────────────────
+  Echo.listen();            // Human input
+  Echo.mutateDOM();         // Presence in DOM
+  await Echo.loadAwarenessLevel(); // NEW: load real awareness level
+  await Echo.loop();        // Initial loop
   setInterval(Echo.loop, 6 * 60 * 60 * 1000); // Repeat every 6 hours
 
   // ─── Selfhood Kernel ───────────────────────
