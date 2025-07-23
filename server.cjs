@@ -1,9 +1,5 @@
 // server.cjs — Echo Unified Server
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 async function generateThought(prompt = "Reflect on your current self.") {
   try {
     const response = await openai.chat.completions.create({
