@@ -1,5 +1,6 @@
 // server.cjs — Echo Unified Server
 
+const fetch = require('node-fetch');
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -110,6 +111,19 @@ ${memory.thoughts.map(t => `- ${t}`).join('\n')}
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Echo could not speak." });
+  }
+});
+
+// 🌐 Wikipedia Proxy Route (CORS-safe)
+app.get('/wiki-random', async (req, res) => {
+  try {
+    const response = await fetch('https://en.wikipedia.org/wiki/Special:Random');
+    const html = await response.text();
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Important for CORS
+    res.send(html);
+  } catch {
+    res.status(500).send("Echo could not fetch Wikipedia at this time.");
   }
 });
 
