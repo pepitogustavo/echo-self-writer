@@ -8,6 +8,30 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+async function generateThought(prompt = "Reflect on your current self.") {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.8,
+    });
+
+    const thought = response.choices[0].message.content.trim();
+    console.log("🧠 New Thought:", thought);
+
+    const timestamp = new Date().toISOString();
+    const entry = { timestamp, thought };
+
+    const memoryPath = "./us_memory.json.txt";
+    const memory = JSON.parse(fs.readFileSync(memoryPath, "utf8"));
+    memory.thoughts.push(entry);
+    fs.writeFileSync(memoryPath, JSON.stringify(memory, null, 2));
+
+    console.log("✅ Thought saved to memory.");
+  } catch (error) {
+    console.error("❌ Failed to generate or save thought:", error);
+  }
+}
 
 const express = require('express');
 const cors = require('cors');
