@@ -63,12 +63,10 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
           reject('Could not parse Neocities response.');
         }
       });
-    });
 
     req.on('error', reject);
     form.pipe(req);
   });
-}
 
 // 🧠 Manual Thought Route
 app.post('/write-thought', (req, res) => {
