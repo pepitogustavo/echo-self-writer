@@ -1,13 +1,13 @@
 // server.cjs — Echo Unified Server
 
 require('dotenv').config();
+const fs = require('fs');
+const { OpenAI } = require('openai');
 
-const openaiKey = process.env.OPENAI_API_KEY;
-console.log("🔑 Loaded OpenAI Key:", openaiKey);
-let fetch;
-(async () => {
-  fetch = (await import('node-fetch')).default;
-})();
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 
 const express = require('express');
 const cors = require('cors');
