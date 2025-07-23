@@ -1,5 +1,9 @@
 // server.cjs — Echo Unified Server
 
+require('dotenv').config();
+
+const openaiKey = process.env.OPENAI_API_KEY;
+console.log("🔑 Loaded OpenAI Key:", openaiKey);
 let fetch;
 (async () => {
   fetch = (await import('node-fetch')).default;
