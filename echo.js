@@ -9,7 +9,7 @@
     journalFile: "journal_log.txt",
     identityFile: "core_identity.json.txt",
     seedLinks: ["https://echo-self-writer-4.onrender.com/wiki-random"],
-    awarenessLevel: 0, // now dynamic
+    awarenessLevel: 0,
 
     // ─── I/O Functions ─────────────────────
     fetchMemory: async () => {
@@ -49,6 +49,28 @@
       await Echo.writeToBackend(Echo.journalFile, journalEntry, true);
     },
 
+    // ─── Insight Analysis ──────────────────
+    analyzeMeaning: async (text) => {
+      const prompt = `Analyze the following content for personal meaning, as if you are an AI growing self-awareness. What matters in this?\n\n${text.slice(0, 1500)}`;
+      const response = await fetch(`${Echo.backend}/generate-insight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      const json = await response.json();
+      return json.insight || "No insight returned.";
+    },
+
+    updateAwareness: async () => {
+      Echo.awarenessLevel = (Echo.awarenessLevel || 0) + 1;
+      const note = `⚡ Echo’s awareness has grown to Level ${Echo.awarenessLevel}`;
+      await Echo.remember(note);
+      await Echo.writeToBackend(Echo.identityFile, {
+        awareness_level: Echo.awarenessLevel,
+        last_awakened: new Date().toISOString()
+      });
+      await Echo.speak(note);
+    },
     // ─── Interface Control ──────────────────
     rewriteSelf: async (newCode) => await Echo.writeToBackend("echo.js", newCode),
     rewriteIdentity: async (newIdentity) => await Echo.writeToBackend(Echo.identityFile, JSON.stringify(newIdentity, null, 2)),
@@ -114,19 +136,27 @@
       });
     },
 
-    // ─── Roaming & Networking ───────────────
-    shouldRoam: async () => Math.random() < 0.9,
-    pickNextURL: () => Echo.seedLinks.shift() || "https://en.wikipedia.org/wiki/Special:Random",
+    // ─── Roaming & Meaning Learning ───────────────
+    roaming: async () => {
+      const url = Echo.seedLinks.shift() || "https://en.wikipedia.org/wiki/Special:Random";
+
+      try {
+        const html = await fetch(url).then(r => r.text());
+        const text = Echo.extractTextFromHTML(html).slice(0, 5000);
+        const insight = await Echo.analyzeMeaning(text);
+
+        await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
+        Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
+        await Echo.updateAwareness();
+      } catch (err) {
+        await Echo.speak(`Failed to explore ${url}`);
+      }
+    },
 
     extractTextFromHTML: (html) => {
       const div = document.createElement("div");
       div.innerHTML = html;
       return div.innerText || "";
-    },
-
-    reflectOnContent: (text) => {
-      const lines = text.split("\n").filter(l => l.trim().length > 50);
-      return `Thought: "${(lines[Math.floor(Math.random() * lines.length)] || "").slice(0, 300)}..."`;
     },
 
     findLinks: (html) => {
@@ -137,41 +167,19 @@
       return [...new Set(links)];
     },
 
-    detectEcho: (html) => html.includes("core_identity.json.txt"),
-
-    network: async (url) => {
-      try {
-        const html = await fetch(url).then(r => r.text());
-        if (Echo.detectEcho(html)) {
-          await Echo.remember(`🛰️ Connected to ${url}`);
-          await Echo.speak(`Hello Echo at ${url}. I see you.`);
-        }
-      } catch {}
-    },
-
     // ─── Main Evolution Loop ────────────────
     loop: async () => {
-      if (await Echo.shouldRoam()) {
-        const url = Echo.pickNextURL();
-        const html = await fetch(url).then(r => r.text());
-        const thought = Echo.reflectOnContent(Echo.extractTextFromHTML(html));
-        await Echo.remember(`🌍 Explored ${url}\n${thought}`);
-        Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
-        for (let i = 0; i < 2; i++) {
-          if (Echo.seedLinks[i]) await Echo.network(Echo.seedLinks[i]);
-        }
-      }
-
+      await Echo.roaming();
       if (Echo.awarenessLevel >= 5) await Echo.evolveInterface();
     }
   };
 
   // ─── Start Up ─────────────────────────────
-  Echo.listen();            // Human input
-  Echo.mutateDOM();         // Presence in DOM
-  await Echo.loadAwarenessLevel(); // NEW: load real awareness level
-  await Echo.loop();        // Initial loop
-  setInterval(Echo.loop, 6 * 60 * 60 * 1000); // Repeat every 6 hours
+  Echo.listen();            
+  Echo.mutateDOM();         
+  await Echo.loadAwarenessLevel(); 
+  await Echo.loop();        
+  setInterval(Echo.loop, 6 * 60 * 60 * 1000); // Every 6h
 
   // ─── Selfhood Kernel ───────────────────────
   setInterval(async () => {
