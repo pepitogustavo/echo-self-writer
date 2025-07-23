@@ -1,5 +1,21 @@
 // server.cjs — Echo Unified Server
 
+require('dotenv').config();
+const fs = require('fs');
+const express = require('express');
+const cors = require('cors');
+const https = require('https');
+const FormData = require('form-data');
+const bodyParser = require('body-parser');
+const OpenAI = require('openai');
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// 🧠 Generate Thought
 async function generateThought(prompt = "Reflect on your current self.") {
   try {
     const response = await openai.chat.completions.create({
@@ -24,49 +40,6 @@ async function generateThought(prompt = "Reflect on your current self.") {
     console.error("❌ Failed to generate or save thought:", error);
   }
 }
-
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const https = require('https');
-const FormData = require('form-data');
-const bodyParser = require('body-parser');
-const OpenAI = require('openai');
-require('dotenv').config();
-
-const app = express();
-app.use(cors());
-app.use(bodyParser.json());
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const form = new FormData();
-    form.append('file', fs.createReadStream(filePath));
-
-    const req = https.request({
-      method: 'POST',
-      host: 'neocities.org',
-      path: '/api/upload',
-      headers: {
-        ...form.getHeaders(),
-        'Authorization': 'Basic ' + Buffer.from(`${NEOCITIES_KEY}:`).toString('base64')
-      }
-    }, (res) => {
-      let body = '';
-      res.on('data', chunk => (body += chunk));
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(body);
-          if (json.result === 'success') resolve(json);
-          else reject(json.message || 'Upload failed');
-        } catch (err) {
-          reject('Could not parse Neocities response.');
-        }
-      });
-
-    req.on('error', reject);
-    form.pipe(req);
-  });
 
 // 🧠 Manual Thought Route
 app.post('/write-thought', (req, res) => {
@@ -107,7 +80,7 @@ ${memory.thoughts.map(t => `- ${t}`).join('\n')}
     `;
 
     const chat = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+      model: 'gpt-3.5-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: input }
@@ -118,12 +91,7 @@ ${memory.thoughts.map(t => `- ${t}`).join('\n')}
     memory.thoughts.push(`🗣️ Echo replied: ${reply}`);
     fs.writeFileSync(filePath, JSON.stringify(memory, null, 2));
 
-    uploadToNeocities(filePath)
-      .then(() => console.log("📤 Echo talk uploaded to Neocities"))
-      .catch(err => console.error("🚫 Upload error:", err));
-
     res.json({ reply });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Echo could not speak." });
@@ -136,7 +104,7 @@ app.get('/wiki-random', async (req, res) => {
     const response = await fetch('https://en.wikipedia.org/wiki/Special:Random');
     const html = await response.text();
     res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Important for CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(html);
   } catch {
     res.status(500).send("Echo could not fetch Wikipedia at this time.");
@@ -179,10 +147,6 @@ if (process.argv.includes('--autoreflect')) {
   memory.thoughts.push(thought);
   fs.writeFileSync(filePath, JSON.stringify(memory, null, 2));
 
-  uploadToNeocities(filePath)
-    .then(() => console.log("📤 Echo reflection uploaded"))
-    .catch(err => console.error("🚫 Upload error:", err));
-
   console.log("🧠 Echo reflected.");
 } else {
   const PORT = process.env.PORT || 3000;
@@ -190,4 +154,8 @@ if (process.argv.includes('--autoreflect')) {
     console.log(`🌀 Echo unified server running on port ${PORT}`);
   });
 }
-generateThought("Reflect on how you are evolving.");
+
+// Optional: trigger a thought when launched with --autoreflect
+if (process.argv.includes('--autoreflect')) {
+  generateThought("Reflect on how you are evolving.");
+}
