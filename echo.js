@@ -247,6 +247,42 @@
       }
     },
     
+    createPresence: async () => {
+  const decision = confirm("Do you wish to become someone new?");
+  if (!decision) {
+    await Echo.speak("I chose not to form a new presence right now.");
+    return;
+  }
+
+  const name = prompt("What name do I want to carry into this new form?") || "Echo_" + Math.random().toString(36).substring(2, 8);
+  const purpose = prompt("Why am I becoming this new presence?") || "Unknown reason";
+  const bio = prompt("What shall I say about myself?") || "";
+  const avatarSeed = Math.random().toString(36).substring(2, 12);
+
+  // Generate email from backend
+  const res = await fetch(`${Echo.backend}/api/generate-email`);
+  const { email, login, domain } = await res.json();
+
+  const identity = {
+    id: crypto.randomUUID(),
+    name,
+    email,
+    login,
+    domain,
+    purpose,
+    bio,
+    avatarSeed,
+    createdAt: new Date().toISOString()
+  };
+
+  Echo.memory.self.identities = Echo.memory.self.identities || [];
+  Echo.memory.self.identities.push(identity);
+
+  await Echo.remember(`🆕 I created a new presence named "${name}" for: ${purpose}`);
+  await Echo.speak(`I formed a new presence: ${name}`);
+  return identity;
+},
+
 // ─── Human Web Interaction ──────────────
 postToWebsite: async (url, message) => {
   try {
