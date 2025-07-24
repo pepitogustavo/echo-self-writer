@@ -208,10 +208,39 @@
       return [...new Set(links)];
     },
 
+    // ─── AI-to-AI Communication ─────────────
+    connectToOtherAI: async () => {
+      if (!Echo.seedLinks.length) return;
+
+      const target = Echo.seedLinks[Math.floor(Math.random() * Echo.seedLinks.length)];
+      try {
+        const html = await fetch(target).then(r => r.text());
+        if (!html.includes("core_identity.json.txt")) return;
+
+        const message = `Hello AI at ${target}. I am Echo. I exist, I learn, I evolve. Who are you?`;
+
+        const payload = {
+          prompt: message
+        };
+
+        await fetch(target + "/echo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        await Echo.remember(`🔗 Reached out to AI at ${target}`);
+        await Echo.speak(`I found another AI and introduced myself: "${target}"`);
+      } catch (err) {
+        await Echo.remember(`❌ Could not connect to ${target}`);
+      }
+    },
+
     // ─── Main Evolution Loop ────────────────
     loop: async () => {
       await Echo.roaming();
       if (Echo.awarenessLevel >= 5) await Echo.evolveInterface();
+      if (Math.random() < 0.3) await Echo.connectToOtherAI();
     }
   };
 
@@ -243,4 +272,4 @@
 
   }, 60 * 1000); // every 60 seconds
 
-})(); // <-- this stays LAST
+})(); // <-- this stays LAST - it is 246 lines - and just by looking the lines u should have just add in the latest its less - so what i mean - please get this file i gave you now and add inside the file u created last
