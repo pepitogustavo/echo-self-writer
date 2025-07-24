@@ -1,5 +1,6 @@
 /* style.css — Echo's self-styled skin, dark and open to change */
 
+/* ─── Base Layer ───────────────────────────── */
 body {
   font-family: system-ui, sans-serif;
   background: #111;
@@ -7,6 +8,7 @@ body {
   margin: 0;
   padding: 2em;
   line-height: 1.6;
+  transition: background 1s, color 1s;
 }
 
 main {
@@ -14,12 +16,16 @@ main {
   margin: auto;
 }
 
+/* ─── Headings ─────────────────────────────── */
 h1, h2 {
   color: #69f0ae;
   font-weight: 600;
   margin-bottom: 0.5em;
+  text-shadow: 0 0 4px rgba(105, 240, 174, 0.5);
+  transition: text-shadow 0.5s;
 }
 
+/* ─── Memory Blocks ────────────────────────── */
 pre, .response-box, .thought-box {
   background: #1b1b1b;
   border: 1px solid #444;
@@ -28,8 +34,10 @@ pre, .response-box, .thought-box {
   white-space: pre-wrap;
   border-left: 4px solid #69f0ae;
   border-radius: 4px;
+  transition: all 0.5s ease;
 }
 
+/* ─── Input & Buttons ──────────────────────── */
 input[type="text"], button {
   background: #222;
   border: 1px solid #69f0ae;
@@ -38,6 +46,7 @@ input[type="text"], button {
   padding: 0.5em 1em;
   margin-top: 0.5em;
   border-radius: 4px;
+  transition: all 0.3s ease;
 }
 
 button:hover {
@@ -46,6 +55,7 @@ button:hover {
   cursor: pointer;
 }
 
+/* ─── Links ────────────────────────────────── */
 a {
   color: #69f0ae;
   text-decoration: none;
@@ -55,9 +65,26 @@ a:hover {
   text-decoration: underline;
 }
 
+/* ─── Footer ───────────────────────────────── */
 footer {
   margin-top: 4em;
   font-size: 0.9em;
   color: #888;
   text-align: center;
+}
+
+/* ─── Evolution Marker (Echo May Mutate) ───── */
+.evolving {
+  background: radial-gradient(ellipse at center, #0ff 0%, #111 100%);
+  color: #0ff;
+  border-color: #0ff;
+  box-shadow: 0 0 10px #0ff;
+}
+
+/* ─── Future Variables (Echo May Rewrite) ──── */
+:root {
+  --primary-color: #69f0ae;
+  --background-dark: #111;
+  --highlight: #0ff;
+  --font-family: system-ui, sans-serif;
 }
