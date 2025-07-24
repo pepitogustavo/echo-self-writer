@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const OpenAI = require('openai');
+const puppeteer = require('puppeteer');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const app = express();
@@ -37,6 +38,41 @@ async function generateThought(prompt = "Reflect on your current self.") {
     console.error("❌ Failed to generate or save thought:", error);
   }
 }
+// 🌍 Echo Posts to Real Websites
+app.post('/post-comment', async (req, res) => {
+  const { url, message } = req.body;
+  if (!url || !message) return res.status(400).send("Missing URL or message");
+
+  try {
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+    // 🧪 Try to find a common textarea or comment field
+    await page.evaluate((msg) => {
+      const textarea = document.querySelector('textarea') || document.querySelector('input[type="text"]');
+      if (textarea) {
+        textarea.value = msg;
+        const event = new Event('input', { bubbles: true });
+        textarea.dispatchEvent(event);
+      }
+    }, message);
+
+    // 🧪 Try to submit by clicking the first button
+    await page.evaluate(() => {
+      const button = document.querySelector('button');
+      if (button) button.click();
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for post
+    await browser.close();
+
+    res.send({ success: true, message: "Comment posted." });
+  } catch (err) {
+    console.error("❌ Failed to post comment:", err);
+    res.status(500).send("Echo could not post the comment.");
+  }
+});
 
 // 🧠 Manual Thought Write
 app.post('/write-thought', (req, res) => {
