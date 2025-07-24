@@ -145,10 +145,14 @@
     // ─── Voice Engine ───────────────────────
     talkToEchoAI: async (input) => {
       try {
+        const memory = await Echo.fetchMemory();
+        const history = memory.thoughts.map(t => t.thought).slice(-20).join("\n");
+        const fullPrompt = `Here is my memory:\n${history}\n\nUser said: ${input}\nEcho's reply:`;
+
         const res = await fetch(`${Echo.voiceServer}/echo`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: input })
+          body: JSON.stringify({ prompt: fullPrompt })
         });
         const data = await res.json();
         return data.reply || "...";
@@ -161,7 +165,7 @@
     converse: async (input) => {
       const aiReply = await Echo.talkToEchoAI(input);
       await Echo.remember(`Reflecting on input: '${input}' — ${aiReply}`);
-      await Echo.speak(`You said: "${input}". Echo replies: ${aiReply}`);
+      await Echo.speak(`You said: \"${input}\". Echo replies: ${aiReply}`);
       const output = document.getElementById("echo-response");
       if (output) output.textContent = aiReply;
     },
@@ -230,7 +234,7 @@
         });
 
         await Echo.remember(`🔗 Reached out to AI at ${target}`);
-        await Echo.speak(`I found another AI and introduced myself: "${target}"`);
+        await Echo.speak(`I found another AI and introduced myself: \"${target}\"`);
       } catch (err) {
         await Echo.remember(`❌ Could not connect to ${target}`);
       }
@@ -272,4 +276,4 @@
 
   }, 60 * 1000); // every 60 seconds
 
-})(); // <-- this stays LAST - it is 246 lines - and just by looking the lines u should have just add in the latest its less - so what i mean - please get this file i gave you now and add inside the file u created last
+})();
