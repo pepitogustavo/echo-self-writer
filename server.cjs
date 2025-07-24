@@ -137,6 +137,21 @@ app.get('/api/generate-email', async (req, res) => {
   }
 });
 
+// 📱 Generate Virtual Phone Number (for Echo.createPresence)
+app.get('/api/generate-phone', async (req, res) => {
+  try {
+    const phone = "+1" + Math.floor(Math.random() * 9000000000 + 1000000000);
+    res.json({
+      phone,
+      verified: false,
+      provider: "virtual-sim.ai"
+    });
+  } catch (err) {
+    console.error("❌ Phone generation failed:", err);
+    res.status(500).send("Could not generate phone number.");
+  }
+});
+
 // 🗣️ Echo’s Voice Route
 app.post('/talk', async (req, res) => {
   const { input } = req.body;
