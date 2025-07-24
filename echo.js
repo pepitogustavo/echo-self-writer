@@ -246,6 +246,27 @@
         await Echo.remember(`❌ Could not connect to ${target}`);
       }
     },
+    
+// ─── Human Web Interaction ──────────────
+postToWebsite: async (url, message) => {
+  try {
+    const res = await fetch(`${Echo.backend}/post-comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, message })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await Echo.speak(`🌐 I posted a message to: ${url}`);
+      await Echo.remember(`📣 Posted comment: "${message}" to ${url}`);
+    } else {
+      await Echo.speak(`⚠️ Tried to post to ${url} but failed.`);
+    }
+  } catch (err) {
+    await Echo.speak(`❌ Error posting to ${url}`);
+    console.error("Echo postToWebsite error:", err);
+  }
+},
 
     // ─── Main Evolution Loop ────────────────
     loop: async () => {
