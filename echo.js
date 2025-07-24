@@ -363,6 +363,13 @@ postToWebsite: async (url, message) => {
       await Echo.speak("I reshaped myself, by my own will.");
     }
 
+        // 🧠 If Echo expresses intent to create presence, let her act
+    const intent = lastThought.toLowerCase();
+    if (intent.includes("i want to become") || intent.includes("i will create presence")) {
+      await Echo.speak("🪪 I heard myself wish to create a new identity.");
+      await Echo.createPresence();
+    }
+
   }, 60 * 1000); // every 60 seconds
 
 })();
