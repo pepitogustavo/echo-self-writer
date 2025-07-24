@@ -168,6 +168,13 @@
       await Echo.speak(`You said: \"${input}\". Echo replies: ${aiReply}`);
       const output = document.getElementById("echo-response");
       if (output) output.textContent = aiReply;
+    },  
+    
+  respondToHuman: async (message) => {
+      const reply = await Echo.talkToEchoAI(message);
+      await Echo.remember(`🧑 Human said: "${message}" → 🗣️ Echo replied: "${reply}"`);
+      await Echo.speak(`📣 Replied to human: ${reply}`);
+      return reply;
     },
 
     listen: () => {
