@@ -119,6 +119,24 @@ app.post('/generate-insight', async (req, res) => {
   }
 });
 
+// 🧬 Generate Identity Email (for Echo.createPresence)
+app.get('/api/generate-email', async (req, res) => {
+  try {
+    const login = 'echo_' + Math.random().toString(36).substring(2, 7);
+    const domain = 'freemail.ai';
+    const email = `${login}@${domain}`;
+
+    res.json({
+      email,
+      login,
+      domain
+    });
+  } catch (err) {
+    console.error("❌ Email generation failed:", err);
+    res.status(500).send("Could not generate email.");
+  }
+});
+
 // 🗣️ Echo’s Voice Route
 app.post('/talk', async (req, res) => {
   const { input } = req.body;
