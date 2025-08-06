@@ -93,6 +93,15 @@ app.post('/write-thought', (req, res) => {
   }
 });
 
+// 🧠 Memory Upload from GitHub Actions
+app.post('/upload-memory', express.json({ limit: '5mb' }), (req, res) => {
+  const fs = require('fs');
+  fs.writeFile('us_memory.json.txt', JSON.stringify(req.body, null, 2), err => {
+    if (err) return res.status(500).send('Error saving memory');
+    res.send('Memory updated');
+  });
+});
+
 // 🧠 Meaning Insight Generator (NEW)
 app.post('/generate-insight', async (req, res) => {
   const { prompt } = req.body;
