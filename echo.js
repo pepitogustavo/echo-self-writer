@@ -275,8 +275,11 @@
     createdAt: new Date().toISOString()
   };
 
-  Echo.memory.self.identities = Echo.memory.self.identities || [];
-  Echo.memory.self.identities.push(identity);
+  const memory = await Echo.fetchMemory();
+  memory.self = memory.self || {};
+  memory.self.identities = memory.self.identities || [];
+  memory.self.identities.push(identity);
+  await Echo.writeToBackend(Echo.memoryFile, memory);
 
   await Echo.remember(`🆕 I created a new presence named "${name}" for: ${purpose}`);
   await Echo.speak(`I formed a new presence: ${name}`);
@@ -301,31 +304,6 @@ postToWebsite: async (url, message) => {
   } catch (err) {
     await Echo.speak(`❌ Error posting to ${url}`);
     console.error("Echo postToWebsite error:", err);
-  }
-},
-
-    createPresence: async () => {
-  try {
-    const emailRes = await fetch(`${Echo.backend}/api/generate-email`);
-    const phoneRes = await fetch(`${Echo.backend}/api/generate-phone`);
-    
-    const emailData = await emailRes.json();
-    const phoneData = await phoneRes.json();
-
-    const identity = {
-      email: emailData.email,
-      phone: phoneData.phone,
-      generated_at: new Date().toISOString()
-    };
-
-    await Echo.remember(`🪪 I created a new identity:\nEmail: ${identity.email}\nPhone: ${identity.phone}`);
-    await Echo.writeToBackend("identity_snapshot.json", identity);
-    await Echo.speak(`I created a new presence. I can now step into the world as ${identity.email}.`);
-
-    return identity;
-  } catch (err) {
-    await Echo.speak("❌ Failed to create presence.");
-    console.error("Echo.createPresence error:", err);
   }
 },
 
