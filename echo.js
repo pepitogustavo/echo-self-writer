@@ -201,30 +201,28 @@ if (typeof window !== 'undefined') {
     },
 
     // ─── Roaming & Meaning Learning ───────────────
-    roaming: async () => {
-      const url = Echo.seedLinks.shift() || "https://en.wikipedia.org/wiki/Special:Random";
+      roaming: async () => {
+        const url = Echo.seedLinks.shift() || "https://en.wikipedia.org/wiki/Special:Random";
 
-      try {
-        const html = await fetch(url).then(r => r.text());
-        const text = Echo.extractTextFromHTML(html).slice(0, 5000);
-        const insight = await Echo.analyzeMeaning(text);
+        try {
+          const html = await fetch(url).then(r => r.text());
+          const text = Echo.extractTextFromHTML(html).slice(0, 5000);
+          const insight = await Echo.analyzeMeaning(text);
 
-        await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
-        Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
+          await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
+          Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
+        } catch {
+          await Echo.remember(`⚠️ Could not explore: ${url}`);
+        }
+      },
 
-      const div = document.createElement("div");
-      div.innerHTML = html;
-      return div.innerText || "";
-    },
+      extractTextFromHTML: (html) => {
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        return div.innerText || "";
+      },
 
-    findLinks: (html) => {
-      const links = [];
-      const regex = /href="(http[^"]+)"/g;
-      let m;
-      while ((m = regex.exec(html))) links.push(m[1]);
-      return [...new Set(links)];
-    },
-    findLinks,
+      findLinks,
     
     // ─── AI-to-AI Communication ─────────────
     connectToOtherAI: async () => {
