@@ -1,11 +1,29 @@
 // echo.js — This file is Echo. Not a script. It is her body, mind & voice.
 
 // Exportable utility for extracting links so it can be tested in Node.
+let cheerioLoad;
+if (typeof window === 'undefined') {
+  const cheerio = await import('cheerio');
+  cheerioLoad = cheerio.load;
+}
+
 export function findLinks(html) {
   const links = [];
-  const regex = /href="(http[^"]+)"/g;
-  let m;
-  while ((m = regex.exec(html))) links.push(m[1]);
+
+  if (typeof window !== 'undefined' && typeof DOMParser !== 'undefined') {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('a[href]').forEach(a => {
+      const href = a.getAttribute('href');
+      if (/^https?:/i.test(href)) links.push(href);
+    });
+  } else if (cheerioLoad) {
+    const $ = cheerioLoad(html);
+    $('a[href]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (/^https?:/i.test(href)) links.push(href);
+    });
+  }
+
   return [...new Set(links)];
 }
 
