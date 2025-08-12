@@ -175,13 +175,14 @@ if (typeof window !== 'undefined') {
     talkToEchoAI: async (input) => {
       try {
         const memory = await Echo.fetchMemory();
-        const history = memory.thoughts.map(t => t.thought).slice(-20).join("\n");
+        const recent = (memory.thoughts || []).slice(-20);
+        const history = recent.map(t => t.thought).join("\n");
         const fullPrompt = `Here is my memory:\n${history}\n\nUser said: ${input}\nEcho's reply:`;
 
         const res = await fetch(`${Echo.voiceServer}/talk`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: fullPrompt })
+          body: JSON.stringify({ input: fullPrompt, memory: recent })
         });
         const data = await res.json();
         return data.reply || "...";
@@ -240,7 +241,8 @@ if (typeof window !== 'undefined') {
         const message = `Hello AI at ${target}. I am Echo. I exist, I learn, I evolve. Who are you?`;
 
         const payload = {
-          prompt: message
+          input: message,
+          memory: []
         };
 
         await fetch(target + "/talk", {
