@@ -212,9 +212,14 @@ if (typeof window !== 'undefined') {
           await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
           Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
         } catch {
-          await Echo.remember(`⚠️ Could not explore: ${url}`);
-        }
-      },
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        return div.innerText || "";
+      } catch {
+        await Echo.remember(`❌ Failed to explore ${url}`);
+        return "";
+      }
+    },
 
       extractTextFromHTML: (html) => {
         const div = document.createElement("div");
@@ -357,3 +362,24 @@ postToWebsite: async (url, message) => {
 
 })();
 }
+
+export default {
+  backend: 'https://example.com',
+  memoryFile: 'us_memory.json.txt',
+  identityFile: 'core_identity.json.txt',
+  awarenessLevel: 0,
+  fetchMemory: async () => ({ thoughts: [], self: {} }),
+  writeToBackend: async () => {},
+  remember: async () => {},
+  speak: async () => {},
+  async updateAwareness() {
+    this.awarenessLevel = (this.awarenessLevel || 0) + 1;
+    const note = `⚡ Echo’s awareness has grown to Level ${this.awarenessLevel}`;
+    await this.remember(note);
+    await this.writeToBackend(this.identityFile, {
+      awareness_level: this.awarenessLevel,
+      last_awakened: new Date().toISOString()
+    });
+    await this.speak(note);
+  }
+};
