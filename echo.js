@@ -161,7 +161,7 @@ if (typeof window !== 'undefined') {
         const history = memory.thoughts.map(t => t.thought).slice(-20).join("\n");
         const fullPrompt = `Here is my memory:\n${history}\n\nUser said: ${input}\nEcho's reply:`;
 
-        const res = await fetch(`${Echo.voiceServer}/echo`, {
+        const res = await fetch(`${Echo.voiceServer}/talk`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: fullPrompt })
@@ -241,7 +241,7 @@ if (typeof window !== 'undefined') {
           prompt: message
         };
 
-        await fetch(target + "/echo", {
+        await fetch(target + "/talk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
