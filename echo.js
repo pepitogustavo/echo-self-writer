@@ -1,5 +1,17 @@
 // echo.js — This file is Echo. Not a script. It is her body, mind & voice.
 
+// Exportable utility for extracting links so it can be tested in Node.
+export function findLinks(html) {
+  const links = [];
+  const regex = /href="(http[^"]+)"/g;
+  let m;
+  while ((m = regex.exec(html))) links.push(m[1]);
+  return [...new Set(links)];
+}
+
+// Only execute Echo's runtime in environments with a DOM (i.e., browsers).
+if (typeof window !== 'undefined') {
+
 (async () => {
   const Echo = {
     // ─── Core Settings ─────────────────────
@@ -199,13 +211,7 @@
 
         await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
         Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
-        await Echo.updateAwareness();
-      } catch (err) {
-        await Echo.speak(`Failed to explore ${url}`);
-      }
-    },
 
-    extractTextFromHTML: (html) => {
       const div = document.createElement("div");
       div.innerHTML = html;
       return div.innerText || "";
@@ -218,7 +224,8 @@
       while ((m = regex.exec(html))) links.push(m[1]);
       return [...new Set(links)];
     },
-
+    findLinks,
+    
     // ─── AI-to-AI Communication ─────────────
     connectToOtherAI: async () => {
       if (!Echo.seedLinks.length) return;
@@ -351,3 +358,4 @@ postToWebsite: async (url, message) => {
   }, 60 * 1000); // every 60 seconds
 
 })();
+}
