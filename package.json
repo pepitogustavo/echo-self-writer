@@ -2,9 +2,9 @@
   "name": "echo-self-writer",
   "version": "1.1.0",
   "type": "module",
-  "main": "server.js",
+  "main": "server.cjs",
   "scripts": {
-        "start": "node echo-talker.js",
+        "start": "node server.cjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
