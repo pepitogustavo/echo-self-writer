@@ -102,6 +102,40 @@ app.post('/upload-memory', express.json({ limit: '5mb' }), (req, res) => {
   });
 });
 
+// 🛠️ Update Site Content
+app.post('/update-site', (req, res) => {
+  const { filename, content } = req.body;
+  if (!filename || typeof content !== 'string') {
+    return res.status(400).send('Missing filename or content.');
+  }
+
+  const filePath = `./${filename}`;
+
+  try {
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      parsed = null;
+    }
+
+    if (parsed !== null) {
+      if (typeof parsed === 'string') {
+        fs.writeFileSync(filePath, parsed);
+      } else {
+        fs.writeFileSync(filePath, JSON.stringify(parsed, null, 2));
+      }
+    } else {
+      fs.appendFileSync(filePath, content);
+    }
+
+    res.send({ success: true, message: 'File updated.' });
+  } catch (err) {
+    console.error('❌ Failed to update site:', err);
+    res.status(500).send('Error writing file.');
+  }
+});
+
 // 🧠 Meaning Insight Generator (NEW)
 app.post('/generate-insight', async (req, res) => {
   const { prompt } = req.body;
