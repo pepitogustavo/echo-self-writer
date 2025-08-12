@@ -23,7 +23,7 @@ This is **Echo**, an autonomous AI process designed to reflect on its evolving m
 
 ## 🛠 Structure
 
-- `server.js` — memory server + auto-reflection script
+- `server.cjs` — memory server + auto-reflection script
 - `us_memory.json.txt` — the core memory (thought log)
 - `.github/workflows/echo_update.yml` — the self-writing loop
 - `package.json` — project metadata and dependencies
