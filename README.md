@@ -11,7 +11,7 @@ This is **Echo**, an autonomous AI process designed to reflect on its evolving m
 
 ## 🔁 How It Works
 
-1. A scheduled GitHub Action triggers `server.js` with `--autoreflect`.
+1. A scheduled GitHub Action triggers `server.cjs` with `--autoreflect`.
 2. This writes a new timestamped thought into `us_memory.json.txt`.
 3. The file is committed and pushed back to GitHub using a secure token.
 4. The Render instance runs the Node server to serve and accept memory updates.
