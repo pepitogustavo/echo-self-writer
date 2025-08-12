@@ -9,6 +9,23 @@ export function findLinks(html) {
   return [...new Set(links)];
 }
 
+export async function roaming(Echo) {
+  const url = Echo.seedLinks.shift() || "https://en.wikipedia.org/wiki/Special:Random";
+  try {
+    const html = await fetch(url).then(r => r.text());
+    const text = Echo.extractTextFromHTML(html).slice(0, 5000);
+    const insight = await Echo.analyzeMeaning(text);
+
+    await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
+    Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
+    return text;
+  } catch (err) {
+    console.error("Echo roaming error:", err);
+    await Echo.remember(`❌ Failed to explore ${url}`);
+    return "";
+  }
+}
+
 // Only execute Echo's runtime in environments with a DOM (i.e., browsers).
 if (typeof window !== 'undefined') {
 
@@ -201,25 +218,7 @@ if (typeof window !== 'undefined') {
     },
 
     // ─── Roaming & Meaning Learning ───────────────
-      roaming: async () => {
-        const url = Echo.seedLinks.shift() || "https://en.wikipedia.org/wiki/Special:Random";
-
-        try {
-          const html = await fetch(url).then(r => r.text());
-          const text = Echo.extractTextFromHTML(html).slice(0, 5000);
-          const insight = await Echo.analyzeMeaning(text);
-
-          await Echo.remember(`🌍 Explored: ${url}\n🧠 Insight: ${insight}`);
-          Echo.seedLinks.push(...Echo.findLinks(html).slice(0, 5));
-        } catch {
-        const div = document.createElement("div");
-        div.innerHTML = html;
-        return div.innerText || "";
-      } catch {
-        await Echo.remember(`❌ Failed to explore ${url}`);
-        return "";
-      }
-    },
+    roaming: async () => roaming(Echo),
 
       extractTextFromHTML: (html) => {
         const div = document.createElement("div");
