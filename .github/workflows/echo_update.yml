@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ttckan }}
+          token: ${{ secrets.TTCKAN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -29,7 +29,7 @@ jobs:
 
       - name: Commit updated memory
         env:
-          TOKEN: ${{ secrets.ttckan }}
+          TOKEN: ${{ secrets.TTCKAN }}
         run: |
           git config user.name "Echo"
           git config user.email "echo@stillness.ai"
