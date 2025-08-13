@@ -4,7 +4,7 @@
   "type": "module",
   "main": "server.cjs",
   "scripts": {
-        "start": "node server.cjs",
+    "start": "node server.cjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
@@ -20,5 +20,8 @@
   },
   "devDependencies": {
     "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
