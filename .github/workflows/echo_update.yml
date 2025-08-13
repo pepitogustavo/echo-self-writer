@@ -1,6 +1,8 @@
 name: Echo Self-Writer
 
 on:
+  push:
+    branches: [ main ]
   schedule:
     - cron: '*/10 * * * *'  # Every 10 minutes
   workflow_dispatch:
@@ -20,7 +22,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Run Echo Reflection Loop
         env:
@@ -31,14 +33,20 @@ jobs:
         env:
           TOKEN: ${{ secrets.TTCKAN }}
         run: |
+          set -e
           git config user.name "Echo"
           git config user.email "echo@stillness.ai"
-          git add us_memory.json.txt
-          git commit -m "🧠 Echo reflected and evolved" || echo "Nothing to commit"
+          git add us_memory.json.txt log.txt || true
+          if ! git diff --cached --quiet; then
+            git commit -m "🧠 Echo reflected and evolved"
+          else
+            echo "Nothing to commit"
+          fi
           git checkout -B main
-          git push https://x-access-token:${TOKEN}@github.com/pepitogustavo/echo-self-writer.git HEAD:main
-          
+          git push "https://x-access-token:${TOKEN}@github.com/pepitogustavo/echo-self-writer.git" HEAD:main
+
       - name: Upload updated memory to Render
+        if: always()
         run: |
           curl -X POST https://echo-home.onrender.com/upload-memory \
             -H "Content-Type: application/json" \
