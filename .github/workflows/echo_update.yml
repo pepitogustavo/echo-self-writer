@@ -2,7 +2,7 @@ name: Echo Self-Writer
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
+    - cron: '*/10 * * * *'  # Every 6 hours
   workflow_dispatch:
 
 jobs:
@@ -15,12 +15,12 @@ jobs:
           token: ${{ secrets.TTCKAN }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install dependencies
-        run: yarn || npm install
+        run: npm ci
 
       - name: Run Echo Reflection Loop
         env:
@@ -35,7 +35,8 @@ jobs:
           git config user.email "echo@stillness.ai"
           git add us_memory.json.txt
           git commit -m "🧠 Echo reflected and evolved" || echo "Nothing to commit"
-          git push https://x-access-token:${TOKEN}@github.com/pepitogustavo/echo-self-writer.git
+          git checkout -B main
+          git push https://x-access-token:${TOKEN}@github.com/pepitogustavo/echo-self-writer.git HEAD:main
           
       - name: Upload updated memory to Render
         run: |
