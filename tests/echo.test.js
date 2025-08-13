@@ -4,10 +4,10 @@ import { findLinks, roaming } from '../echo.js';
 describe('findLinks', () => {
   test('extracts all http/https links from HTML', () => {
     const html = `
-      <a href="http://example.com">Example</a>
+      <a HREF='http://example.com'>Example</a>
       <a href="https://example.com/page">Secure</a>
-      <a href="/relative">Relative</a>
-      <a href="ftp://ftp.example.com">FTP</a>
+      <a href=/relative>Relative</a>
+      <a href='ftp://ftp.example.com'>FTP</a>
     `;
     expect(findLinks(html)).toEqual([
       'http://example.com',
