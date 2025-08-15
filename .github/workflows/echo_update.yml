@@ -13,8 +13,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.TTCKAN }}
+        # Remove the token input if TTCKAN is not configured or use a valid secret name
+        # with:
+        #   token: ${{ secrets.TTCKAN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -31,7 +32,7 @@ jobs:
 
       - name: Commit updated memory
         env:
-          TOKEN: ${{ secrets.TTCKAN }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           git config user.name "Echo"
