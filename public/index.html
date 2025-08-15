@@ -22,12 +22,13 @@
 </div>
 
 <script>
+const BACKEND_URL='https://echo-self-writer-yub3.onrender.com';
 const outHealth=document.getElementById('outHealth');
 const outReflect=document.getElementById('outReflect');
 
 btnHealth.onclick = async () => {
   outHealth.textContent='checking…';
-  try { const r=await fetch('/health'); outHealth.textContent=await r.text(); }
+  try { const r=await fetch(BACKEND_URL + '/health'); outHealth.textContent=await r.text(); }
   catch(e){ outHealth.textContent=String(e); }
 };
 
@@ -35,7 +36,7 @@ btnReflect.onclick = async () => {
   const body = { message: document.getElementById('msg').value || 'hello from Echo' };
   outReflect.textContent='sending…';
   try{
-    const r=await fetch('/reflect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const r=await fetch(BACKEND_URL + '/reflect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
     outReflect.textContent = JSON.stringify(await r.json(), null, 2);
   }catch(e){ outReflect.textContent=String(e); }
 };
