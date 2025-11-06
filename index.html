@@ -8,34 +8,113 @@
   .card { padding: 1rem; border: 1px solid #ddd; border-radius: 12px; margin: 1rem 0 }
   textarea,input,button { width: 100%; padding: .75rem; margin: .25rem 0 }
   pre { background: #f7f7f7; padding: .75rem; border-radius: 8px; overflow:auto }
+  #backendStatus { color: #555; font-size: .9rem; margin: -.5rem 0 1.5rem }
 </style>
 
 <h1>Echo — Active Front</h1>
+<p id="backendStatus">Detecting backend…</p>
 
 <div class="card">
   <h3>1) Health</h3>
-  <button id="btnHealth">Check /api/health</button>
+  <button id="btnHealth">Check backend /health</button>
   <pre id="outHealth">—</pre>
 </div>
 
 <div class="card">
   <h3>2) Reflect</h3>
   <textarea id="msg" rows="4" placeholder="Type something…"></textarea>
-  <button id="btnReflect">Send to /api/reflect</button>
+  <button id="btnReflect">Send to backend /reflect</button>
   <pre id="outReflect">—</pre>
 </div>
 
-<script>
-const outHealth  = document.getElementById('outHealth');
+<script data-backend="/api">
+const backendStatus = document.getElementById('backendStatus');
+const outHealth = document.getElementById('outHealth');
 const outReflect = document.getElementById('outReflect');
+
+const rawConfigured = typeof window.BACKEND_URL === 'string' ? window.BACKEND_URL : '';
+const scriptConfigured = document.currentScript?.dataset?.backend ?? '';
+const candidateInputs = [rawConfigured, scriptConfigured, '', '/api'];
+
+const candidates = [];
+const seen = new Set();
+for (const value of candidateInputs) {
+  const normalized = normalizeBase(value);
+  if (normalized === null || seen.has(normalized)) continue;
+  seen.add(normalized);
+  candidates.push(normalized);
+}
+
+let backendDetectionPromise;
+let lastDetectionError = 'backend not detected';
+
+function normalizeBase(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/\/+$/, '');
+}
+
+function joinPath(base, path) {
+  return `${base ?? ''}${path}`;
+}
+
+function describeBase(base) {
+  if (!base) return 'same origin';
+  if (base === '/api') return 'same origin via /api';
+  return base;
+}
+
+async function detectBackend() {
+  for (const base of candidates) {
+    const url = joinPath(base, '/health');
+    try {
+      const response = await fetch(url, { method: 'GET' });
+      if (response.ok) {
+        lastDetectionError = '';
+        backendStatus.textContent = `Using backend: ${describeBase(base)}`;
+        return base;
+      }
+      lastDetectionError = `GET ${url} → HTTP ${response.status}`;
+    } catch (error) {
+      lastDetectionError = error?.message || String(error);
+    }
+  }
+  backendStatus.textContent = '⚠️ Unable to reach backend. Set window.BACKEND_URL.';
+  return null;
+}
+
+async function ensureBackend() {
+  backendDetectionPromise = backendDetectionPromise ?? detectBackend();
+  const base = await backendDetectionPromise;
+  if (base === null) throw new Error(lastDetectionError || 'No backend reachable');
+  return base;
+}
+
+function formatBody(raw) {
+  if (!raw) return '(empty)';
+  try {
+    const parsed = JSON.parse(raw);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return raw;
+  }
+}
+
+async function fetchBackend(path, init) {
+  const base = await ensureBackend();
+  return fetch(joinPath(base, path), init);
+}
 
 btnHealth.onclick = async () => {
   outHealth.textContent = 'checking…';
   try {
-    const r = await fetch('/api/health');
-    outHealth.textContent = await r.text();
-  } catch (e) {
-    outHealth.textContent = String(e);
+    const response = await fetchBackend('/health');
+    const text = await response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text || '(empty)'}`);
+    outHealth.textContent = text || '(empty)';
+  } catch (error) {
+    outHealth.textContent = String(error);
   }
 };
 
@@ -43,14 +122,18 @@ btnReflect.onclick = async () => {
   const body = { message: document.getElementById('msg').value || 'hello from Echo' };
   outReflect.textContent = 'sending…';
   try {
-    const r = await fetch('/api/reflect', {
+    const response = await fetchBackend('/reflect', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    outReflect.textContent = await r.text();
-  } catch (e) {
-    outReflect.textContent = String(e);
+    const text = await response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text || '(empty)'}`);
+    outReflect.textContent = formatBody(text);
+  } catch (error) {
+    outReflect.textContent = String(error);
   }
 };
+
+ensureBackend().catch(() => {});
 </script>
