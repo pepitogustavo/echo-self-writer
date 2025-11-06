@@ -38,6 +38,49 @@ describe('findLinks', () => {
       'http://example.net'
     ]);
   });
+
+  test('trims URLs when running in a DOM environment', () => {
+    const originalWindow = global.window;
+    const originalDOMParser = global.DOMParser;
+
+    class FakeDOMParser {
+      parseFromString(html) {
+        const hrefs = [];
+        const anchorPattern = /<a[^>]*href=(?:"([^"]*)"|'([^']*)')[^>]*>/gi;
+        let match;
+        while ((match = anchorPattern.exec(html)) !== null) {
+          hrefs.push(match[1] ?? match[2] ?? '');
+        }
+
+        return {
+          querySelectorAll() {
+            return hrefs.map(href => ({
+              getAttribute(name) {
+                return name === 'href' ? href : null;
+              }
+            }));
+          }
+        };
+      }
+    }
+
+    global.window = {};
+    global.DOMParser = FakeDOMParser;
+
+    try {
+      const html = `
+        <a href="  https://browser.com ">Browser</a>
+        <a href='\nhttps://dom.example\t'>DOM</a>
+      `;
+      expect(findLinks(html)).toEqual([
+        'https://browser.com',
+        'https://dom.example'
+      ]);
+    } finally {
+      global.window = originalWindow;
+      global.DOMParser = originalDOMParser;
+    }
+  });
 });
 
 describe('roaming', () => {
