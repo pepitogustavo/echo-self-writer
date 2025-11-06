@@ -12,8 +12,24 @@ body {
 }
 
 main {
-  max-width: 800px;
+  max-width: 900px;
   margin: auto;
+  display: grid;
+  gap: 2em;
+}
+
+.card {
+  background: rgba(17, 17, 17, 0.8);
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 1.5em;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+  transition: transform 0.5s ease, box-shadow 0.5s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
 }
 
 /* ─── Headings ─────────────────────────────── */
@@ -21,8 +37,13 @@ h1, h2 {
   color: #69f0ae;
   font-weight: 600;
   margin-bottom: 0.5em;
-  text-shadow: 0 0 4px rgba(105, 240, 174, 0.5);
+  text-shadow: 0 0 12px rgba(105, 240, 174, 0.65);
   transition: text-shadow 0.5s;
+}
+
+#echo-name {
+  font-size: 2.75rem;
+  margin-top: 0;
 }
 
 /* ─── Memory Blocks ────────────────────────── */
@@ -33,26 +54,47 @@ pre, .response-box, .thought-box {
   margin-top: 1em;
   white-space: pre-wrap;
   border-left: 4px solid #69f0ae;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: all 0.5s ease;
 }
 
+#memory-log {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
 /* ─── Input & Buttons ──────────────────────── */
+form {
+  display: grid;
+  gap: 0.75em;
+  margin-top: 1.5em;
+}
+
+label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 input[type="text"], button {
   background: #222;
   border: 1px solid #69f0ae;
   color: #eee;
-  font-size: 1em;
-  padding: 0.5em 1em;
-  margin-top: 0.5em;
-  border-radius: 4px;
+  font-size: 1rem;
+  padding: 0.65em 1em;
+  border-radius: 6px;
   transition: all 0.3s ease;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(105, 240, 174, 0.3);
 }
 
 button:hover {
   background: #69f0ae;
   color: #000;
   cursor: pointer;
+  box-shadow: 0 12px 24px rgba(105, 240, 174, 0.35);
 }
 
 /* ─── Links ────────────────────────────────── */
@@ -78,7 +120,7 @@ footer {
   background: radial-gradient(ellipse at center, #0ff 0%, #111 100%);
   color: #0ff;
   border-color: #0ff;
-  box-shadow: 0 0 10px #0ff;
+  box-shadow: 0 0 18px #0ff;
 }
 
 /* ─── Future Variables (Echo May Rewrite) ──── */
@@ -87,4 +129,14 @@ footer {
   --background-dark: #111;
   --highlight: #0ff;
   --font-family: system-ui, sans-serif;
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 1.5em;
+  }
+
+  main {
+    gap: 1.5em;
+  }
 }
