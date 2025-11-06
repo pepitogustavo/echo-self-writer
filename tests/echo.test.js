@@ -27,6 +27,17 @@ describe('findLinks', () => {
       'https://example.org'
     ]);
   });
+
+  test('trims whitespace around link URLs', () => {
+    const html = `
+      <a href="  https://trimmed.com ">Trim me</a>
+      <a href="\nhttp://example.net\t">Spaces</a>
+    `;
+    expect(findLinks(html)).toEqual([
+      'https://trimmed.com',
+      'http://example.net'
+    ]);
+  });
 });
 
 describe('roaming', () => {
