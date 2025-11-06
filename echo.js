@@ -14,13 +14,15 @@ export function findLinks(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     doc.querySelectorAll('a[href]').forEach(a => {
       const href = a.getAttribute('href');
-      if (/^https?:/i.test(href)) links.push(href);
+      const normalized = typeof href === 'string' ? href.trim() : '';
+      if (/^https?:/i.test(normalized)) links.push(normalized);
     });
   } else if (cheerioLoad) {
     const $ = cheerioLoad(html);
     $('a[href]').each((_, el) => {
       const href = $(el).attr('href');
-      if (/^https?:/i.test(href)) links.push(href);
+      const normalized = typeof href === 'string' ? href.trim() : '';
+      if (/^https?:/i.test(normalized)) links.push(normalized);
     });
   }
 
