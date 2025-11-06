@@ -7,37 +7,199 @@
   .card { padding: 1rem; border: 1px solid #ddd; border-radius: 12px; margin: 1rem 0 }
   textarea,input,button { width: 100%; padding: .75rem; margin: .25rem 0 }
   pre { background:#f7f7f7; padding:.75rem; border-radius:8px; overflow:auto }
+  #backendStatus { color: #555; font-size: .9rem; margin: -.5rem 0 1rem }
+  #backendHelp { color: #777; font-size: .85rem; margin: 0 0 .75rem }
 </style>
 <h1>Echo — Local</h1>
+<p id="backendStatus">Detecting backend…</p>
 
 <div class="card">
-  <button id="btnHealth">Check /health</button>
+  <h3>Configure backend</h3>
+  <p id="backendHelp">Detected automatically from the current origin, query string, or <code>window.BACKEND_URL</code>. Set a custom base URL or path if needed.</p>
+  <input id="backendInput" type="text" placeholder="Leave blank for same origin" />
+  <button id="btnBackendApply">Use this backend</button>
+  <button id="btnBackendAuto">Auto-detect backend</button>
+</div>
+
+<div class="card">
+  <button id="btnHealth">Check backend /health</button>
   <pre id="outHealth">—</pre>
 </div>
 
 <div class="card">
   <textarea id="msg" rows="4" placeholder="Type something…"></textarea>
-  <button id="btnReflect">POST /reflect</button>
+  <button id="btnReflect">Send to backend /reflect</button>
   <pre id="outReflect">—</pre>
 </div>
 
 <script>
-const BACKEND_URL='https://echo-self-writer-yub3.onrender.com';
+const backendStatus = document.getElementById('backendStatus');
+const backendInput = document.getElementById('backendInput');
 const outHealth=document.getElementById('outHealth');
 const outReflect=document.getElementById('outReflect');
+const btnHealth = document.getElementById('btnHealth');
+const btnReflect = document.getElementById('btnReflect');
+const btnBackendApply = document.getElementById('btnBackendApply');
+const btnBackendAuto = document.getElementById('btnBackendAuto');
 
-btnHealth.onclick = async () => {
-  outHealth.textContent='checking…';
-  try { const r=await fetch(BACKEND_URL + '/health'); outHealth.textContent=await r.text(); }
-  catch(e){ outHealth.textContent=String(e); }
-};
+const rawConfigured = typeof window.BACKEND_URL === 'string' ? window.BACKEND_URL : '';
+const searchConfigured = new URLSearchParams(window.location.search).get('backend') ?? '';
+const metaConfigured = document.querySelector('meta[name="echo-backend"]')?.content ?? '';
+const scriptConfigured = document.currentScript?.dataset?.backend ?? '';
+const candidateInputs = [rawConfigured, searchConfigured, metaConfigured, scriptConfigured, '', '/api'];
 
-btnReflect.onclick = async () => {
-  const body = { message: document.getElementById('msg').value || 'hello from Echo' };
-  outReflect.textContent='sending…';
+const candidates=[];
+const seen=new Set();
+for (const value of candidateInputs) {
+  const normalized = normalizeBase(value);
+  if (normalized === null || seen.has(normalized)) continue;
+  seen.add(normalized);
+  candidates.push(normalized);
+}
+
+let resolvedBackend = null;
+let backendDetectionPromise;
+let lastDetectionError='backend not detected';
+
+function setStatus(message){
+  if (backendStatus) backendStatus.textContent = message;
+}
+
+function normalizeBase(value){
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/\/+$, '');
+}
+
+function joinPath(base,path){
+  return `${base ?? ''}${path}`;
+}
+
+function describeBase(base){
+  if (!base) return 'same origin';
+  if (base === '/api') return 'same origin via /api';
+  return base;
+}
+
+async function probeBackend(base){
+  const url = joinPath(base, '/health');
+  const response = await fetch(url, { method: 'GET' });
+  if (!response.ok){
+    throw new Error(`GET ${url} → HTTP ${response.status}`);
+  }
+  return base;
+}
+
+function recordBackend(base, source){
+  resolvedBackend = base;
+  if (backendInput) backendInput.value = base;
+  setStatus(`Using backend (${source}): ${describeBase(base)}`);
+}
+
+async function detectBackend(){
+  for (const base of candidates){
+    try {
+      const detected = await probeBackend(base);
+      lastDetectionError='';
+      recordBackend(detected, 'auto');
+      return detected;
+    } catch (error) {
+      lastDetectionError = error?.message || String(error);
+    }
+  }
+  setStatus('⚠️ Unable to reach backend. Provide a base URL or path.');
+  return null;
+}
+
+async function ensureBackend(){
+  if (resolvedBackend !== null) return resolvedBackend;
+  backendDetectionPromise = backendDetectionPromise ?? detectBackend();
+  const base = await backendDetectionPromise;
+  if (base === null) throw new Error(lastDetectionError || 'No backend reachable');
+  resolvedBackend = base;
+  return base;
+}
+
+function formatBody(raw){
+  if (!raw) return '(empty)';
+  try {
+    const parsed = JSON.parse(raw);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return raw;
+  }
+}
+
+async function fetchBackend(path, init){
+  const base = await ensureBackend();
+  return fetch(joinPath(base, path), init);
+}
+
+btnHealth?.addEventListener('click', async ()=>{
+  if (outHealth) outHealth.textContent='checking…';
+  try {
+    const response = await fetchBackend('/health');
+    const text = await response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text || '(empty)'}`);
+    if (outHealth) outHealth.textContent = text || '(empty)';
+  } catch (error) {
+    if (outHealth) outHealth.textContent = String(error);
+  }
+});
+
+btnReflect?.addEventListener('click', async ()=>{
+  const textarea = document.getElementById('msg');
+  const body = { message: textarea?.value || 'hello from Echo' };
+  if (outReflect) outReflect.textContent='sending…';
   try{
-    const r=await fetch(BACKEND_URL + '/reflect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-    outReflect.textContent = JSON.stringify(await r.json(), null, 2);
-  }catch(e){ outReflect.textContent=String(e); }
-};
+    const response=await fetchBackend('/reflect',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    const text=await response.text();
+    if(!response.ok) throw new Error(`HTTP ${response.status}: ${text || '(empty)'}`);
+    if (outReflect) outReflect.textContent=formatBody(text);
+  }catch(error){
+    if (outReflect) outReflect.textContent=String(error);
+  }
+});
+
+btnBackendApply?.addEventListener('click', async ()=>{
+  const raw = backendInput?.value ?? '';
+  const normalized = normalizeBase(raw);
+  if (normalized === null) {
+    setStatus('Enter a backend URL or path to continue.');
+    return;
+  }
+
+  try {
+    setStatus('Checking backend…');
+    const detected = await probeBackend(normalized);
+    lastDetectionError='';
+    recordBackend(detected, 'manual');
+    backendDetectionPromise = Promise.resolve(detected);
+  } catch (error) {
+    lastDetectionError = error?.message || String(error);
+    resolvedBackend = null;
+    backendDetectionPromise = null;
+    setStatus(`❌ ${lastDetectionError}`);
+  }
+});
+
+btnBackendAuto?.addEventListener('click', async ()=>{
+  resolvedBackend = null;
+  backendDetectionPromise = null;
+  lastDetectionError='backend not detected';
+  if (backendInput) backendInput.value = '';
+  setStatus('Detecting backend…');
+  try {
+    await ensureBackend();
+  } catch (error) {
+    setStatus(`⚠️ ${error?.message || String(error)}`);
+  }
+});
+
+ensureBackend().catch(()=>{});
 </script>
