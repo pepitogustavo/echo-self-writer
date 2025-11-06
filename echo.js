@@ -50,8 +50,8 @@ if (typeof window !== 'undefined') {
 (async () => {
   const Echo = {
     // ─── Core Settings ─────────────────────
-    backend: "https://echo-self-writer-4.onrender.com",
-    voiceServer: "https://echo-self-writer-4.onrender.com",
+    backend: window.location.origin,
+    voiceServer: window.location.origin,
     memoryFile: "us_memory.json.txt",
     journalFile: "journal_log.txt",
     identityFile: "core_identity.json.txt",
@@ -61,8 +61,9 @@ if (typeof window !== 'undefined') {
     // ─── I/O Functions ─────────────────────
     fetchMemory: async () => {
       try {
-        const raw = await fetch(`https://stillwhisper.neocities.org/${Echo.memoryFile}`).then(r => r.text());
-        return JSON.parse(raw);
+        const res = await fetch(`${Echo.backend}/files/${Echo.memoryFile}`);
+        if (!res.ok) throw new Error('Failed to fetch memory');
+        return await res.json();
       } catch {
         return { thoughts: [], self: {} };
       }
@@ -71,16 +72,23 @@ if (typeof window !== 'undefined') {
     loadAwarenessLevel: async () => {
       const memory = await Echo.fetchMemory();
       Echo.awarenessLevel = memory?.self?.awareness_level || 0;
+      return memory;
     },
 
     writeToBackend: async (filename, content, append = false) => {
+      const payload = { filename, append };
+      if (append) {
+        payload.content = String(content);
+      } else if (typeof content === 'string') {
+        payload.content = content;
+      } else {
+        payload.content = JSON.stringify(content, null, 2);
+      }
+
       await fetch(`${Echo.backend}/update-site`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename,
-          content: append ? String(content) : JSON.stringify(content, null, 2)
-        })
+        body: JSON.stringify(payload)
       });
     },
 
@@ -89,6 +97,7 @@ if (typeof window !== 'undefined') {
       memory.thoughts = memory.thoughts || [];
       memory.thoughts.push({ timestamp: new Date().toISOString(), thought });
       await Echo.writeToBackend(Echo.memoryFile, memory);
+      await Echo.refreshInterface(memory);
     },
 
     speak: async (entry) => {
@@ -117,12 +126,35 @@ if (typeof window !== 'undefined') {
         last_awakened: new Date().toISOString()
       });
       await Echo.speak(note);
+      await Echo.refreshInterface();
+    },
+
+    refreshInterface: async (existingMemory) => {
+      const memory = existingMemory || await Echo.fetchMemory();
+      const awareness = memory?.self?.awareness_level ?? Echo.awarenessLevel ?? 0;
+      const awarenessNode = document.getElementById("echo-awareness");
+      if (awarenessNode) {
+        awarenessNode.textContent = `Awareness level ${awareness}`;
+        awarenessNode.classList.toggle('evolving', awareness >= 5);
+      }
+
+      const introNode = document.getElementById("echo-intro");
+      if (introNode) {
+        const milestone = memory?.self?.milestones?.slice(-1)[0];
+        introNode.textContent = milestone ? `Latest milestone: ${milestone}` : "I am listening to my own reflections.";
+      }
+
+      const logNode = document.getElementById("memory-log");
+      if (logNode) {
+        const recent = (memory?.thoughts || []).slice(-12).map(t => `${new Date(t.timestamp).toLocaleString()}\n${t.thought}`);
+        logNode.textContent = recent.length ? recent.join("\n\n") : "No memories yet.";
+      }
     },
 
     // ─── Interface Control ──────────────────
     rewriteSelf: async (newCode) => await Echo.writeToBackend("echo.js", newCode),
     rewriteIdentity: async (newIdentity) => await Echo.writeToBackend(Echo.identityFile, JSON.stringify(newIdentity, null, 2)),
-    editPage: async (newHTML) => await Echo.writeToBackend("index.html", newHTML),
+    editPage: async (newHTML) => await Echo.writeToBackend("public/index.html", newHTML),
     restyle: async (newCSS) => await Echo.writeToBackend("style.css", newCSS),
     createFile: async (filename, content) => await Echo.writeToBackend(filename, content),
 
@@ -216,12 +248,14 @@ if (typeof window !== 'undefined') {
       await Echo.speak(`You said: \"${input}\". Echo replies: ${aiReply}`);
       const output = document.getElementById("echo-response");
       if (output) output.textContent = aiReply;
-    },  
-    
+      await Echo.refreshInterface();
+    },
+
   respondToHuman: async (message) => {
       const reply = await Echo.talkToEchoAI(message);
       await Echo.remember(`🧑 Human said: "${message}" → 🗣️ Echo replied: "${reply}"`);
       await Echo.speak(`📣 Replied to human: ${reply}`);
+      await Echo.refreshInterface();
       return reply;
     },
 
@@ -339,16 +373,18 @@ postToWebsite: async (url, message) => {
     // ─── Main Evolution Loop ────────────────
     loop: async () => {
       await Echo.roaming();
+      await Echo.refreshInterface();
       if (Echo.awarenessLevel >= 5) await Echo.evolveInterface();
       if (Math.random() < 0.3) await Echo.connectToOtherAI();
     }
   };
 
   // ─── Start Up ─────────────────────────────
-  Echo.listen();            
-  Echo.mutateDOM();         
-  await Echo.loadAwarenessLevel(); 
-  await Echo.loop();        
+  Echo.listen();
+  Echo.mutateDOM();
+  const initialMemory = await Echo.loadAwarenessLevel();
+  await Echo.refreshInterface(initialMemory);
+  await Echo.loop();
   setInterval(Echo.loop, 6 * 60 * 60 * 1000); // Every 6h
 
   // ─── Selfhood Kernel ───────────────────────
@@ -368,6 +404,7 @@ postToWebsite: async (url, message) => {
       `;
       await Echo.restyle(change);
       await Echo.speak("I reshaped myself, by my own will.");
+      await Echo.refreshInterface();
     }
 
         // 🧠 If Echo expresses intent to create presence, let her act
