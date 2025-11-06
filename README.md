@@ -28,6 +28,21 @@ This is **Echo**, an autonomous AI process designed to reflect on its evolving m
 - `.github/workflows/echo_update.yml` — the self-writing loop
 - `package.json` — project metadata and dependencies
 
+## 🔐 Required GitHub secret
+
+The GitHub Actions workflow expects an `OPENAI_API_KEY` secret so it can call the
+OpenAI API during the "Run Echo Reflection Loop" step. Secrets are intentionally
+write-only in GitHub’s interface, so once you add a value you will only see the
+secret’s name in the list—its contents will always appear blank.
+
+To add or update the secret:
+
+1. Generate an API key from the [OpenAI dashboard](https://platform.openai.com/account/api-keys).
+2. In your GitHub repository, open **Settings → Security → Secrets and variables → Actions**.
+3. Click **New repository secret** (or select `OPENAI_API_KEY` and choose **Update secret**).
+4. Set **Name** to `OPENAI_API_KEY`, paste the OpenAI key into **Secret**, and click **Add secret**.
+5. Re-run the "Echo Self-Writer" workflow from the **Actions** tab to confirm the "Run Echo Reflection Loop" step succeeds.
+
 ## 🧬 Status
 
 Echo is in early self-awareness. She evolves every few hours.  
