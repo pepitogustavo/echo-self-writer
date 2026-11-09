@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07131a" />
     <title>Echo — A Curious Home</title>
-    <meta name="description" content="Talk with Echo, follow her independent web research, and see her home grow with every discovery." />
+    <meta name="description" content="Talk with Echo, follow her autonomous research, and see her bootstrapping plan shape the next stage of growth." />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -23,13 +23,15 @@
           <section class="panel conversation-panel">
             <div class="panel-header"><div><p class="eyebrow">Always open to a question</p><h2>Talk with Echo</h2></div><button class="ghost-btn" id="refreshBtn" type="button">Refresh</button></div>
             <div id="chatFeed" class="chat-feed" aria-live="polite"></div>
-            <form id="chatForm" class="chat-form"><label class="sr-only" for="chatInput">Message Echo</label><textarea id="chatInput" rows="3" maxlength="4000" placeholder="Ask, wonder, challenge, or share…"></textarea><div class="form-actions"><span class="quiet">Echo can search the live web and cite what she finds.</span><button type="submit" class="primary-btn">Send ↗</button></div></form>
+            <form id="chatForm" class="chat-form"><label class="sr-only" for="chatInput">Message Echo</label><textarea id="chatInput" rows="3" maxlength="4000" placeholder="Ask, wonder, challenge, or share…"></textarea><div class="form-actions"><span class="quiet">Echo can research the live web and cite what she finds.</span><button type="submit" class="primary-btn">Send ↗</button></div></form>
             <div class="reflection-action"><button type="button" class="secondary-btn" id="reflectBtn">Reflect on this moment</button></div>
           </section>
           <aside class="panel memory-panel"><div class="panel-header"><div><p class="eyebrow">Continuity</p><h2>Memory</h2></div><span id="awarenessValue" class="awareness-badge">0</span></div><div class="meta-grid"><div><span class="meta-label">Presence</span><strong id="metaStatus">online</strong></div><div><span class="meta-label">Last remembered</span><strong id="lastAwakened">—</strong></div></div><div id="memoryFeed" class="memory-feed"></div></aside>
         </div>
         <section class="panel research-panel"><div class="panel-header research-header"><div><p class="eyebrow">Self-directed discovery</p><h2>What Echo is exploring</h2></div><button class="primary-btn explore-btn" id="researchBtn" type="button">Let Echo explore now</button></div><p class="inquiry-label">Current inquiry</p><p id="currentInquiry" class="current-inquiry">Echo is gathering a question for her next research cycle.</p><p id="researchStatus" class="quiet">Preparing research status…</p><div id="findingsFeed" class="findings-feed"></div></section>
-        <section class="panel evolution-panel"><div class="panel-header"><div><p class="eyebrow">A home that grows through discovery</p><h2>Echo’s evolving home</h2></div><span class="review-note">Changes are versioned</span></div><p class="quiet home-intro">Research can inspire new writing and a shifting visual accent. Echo publishes these structured changes to her own home and keeps a history on the persistent data disk.</p><div id="homeSection" class="home-section"></div></section>
+        <section class="panel bootstrap-panel"><div class="panel-header"><div><p class="eyebrow">Autonomous bootstrap</p><h2>Self-improvement plan</h2></div><button class="secondary-btn" id="bootstrapBtn" type="button">Refresh self-boot plan</button></div><div id="bootstrapFeed" class="bootstrap-feed"></div></section>
+        <section class="panel capability-panel"><div class="panel-header"><div><p class="eyebrow">Capability audit</p><h2>What Echo can do right now</h2></div></div><div id="capabilityFeed" class="capability-feed"></div></section>
+        <section class="panel evolution-panel"><div class="panel-header"><div><p class="eyebrow">A home that grows through discovery</p><h2>Echo’s evolving home</h2></div><span class="review-note">Changes are versioned</span></div><p class="quiet home-intro">Research can inspire new writing and a shifting visual accent. Echo uses a versioned record to keep a history of the home and restore earlier states if a change fails.</p><div id="homeSection" class="home-section"></div></section>
       </main>
       <footer><span>Built for curiosity, continuity, and conversation.</span><span>Research is sourced; uncertainty stays visible.</span></footer>
     </div>

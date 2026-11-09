@@ -60,6 +60,7 @@ function defaultState() {
     findings: [],
     homeSections: [],
     evolutionHistory: [],
+    bootstrapPlan: { generatedAt: null, nextAction: 'Audit capabilities and identify the next self-improvement path.', goals: [], constraints: [] },
     lastResearchAt: null,
     lastResearchError: null
   };
@@ -75,7 +76,8 @@ function readState() {
       presence: { ...defaults.presence, ...(saved.presence || {}) },
       findings: Array.isArray(saved.findings) ? saved.findings : [],
       homeSections: Array.isArray(saved.homeSections) ? saved.homeSections : [],
-      evolutionHistory: Array.isArray(saved.evolutionHistory) ? saved.evolutionHistory : []
+      evolutionHistory: Array.isArray(saved.evolutionHistory) ? saved.evolutionHistory : [],
+      bootstrapPlan: { ...defaults.bootstrapPlan, ...(saved.bootstrapPlan || {}) }
     };
   } catch {
     return defaultState();
@@ -141,6 +143,51 @@ function getCitations(response) {
   return sources.slice(0, 8);
 }
 
+function buildCapabilitySnapshot() {
+  const diskOk = (() => {
+    try {
+      const probe = path.join(DATA_DIR, '.echo-capability-probe');
+      fs.writeFileSync(probe, 'ok');
+      fs.unlinkSync(probe);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  return {
+    timestamp: new Date().toISOString(),
+    environment: {
+      nodeVersion: process.version,
+      dataDir: DATA_DIR,
+      diskWritable: diskOk,
+      runtime: 'node',
+      port: PORT,
+      webServerRunning: true
+    },
+    capabilities: {
+      openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
+      researchEnabled: Boolean(process.env.OPENAI_API_KEY),
+      webSearchEnabled: Boolean(process.env.OPENAI_API_KEY),
+      memoryPersistence: true,
+      fileVersioning: true,
+      homeEvolution: true,
+      selfHealsThroughCodeRollbacks: true,
+      putsAuthAndPaymentsOutsideSandbox: true
+    },
+    constraints: [
+      'Echo cannot bypass identity checks, account approvals, or service authentication rules.',
+      'All resource acquisition must happen through legitimate, permitted pathways available to the runtime.',
+      'Echo should prefer free or low-cost options and document blockers clearly when they require human approval.'
+    ],
+    recommendedNextMoves: [
+      'Audit the current runtime and identify the lowest-friction self-improvement tasks.',
+      'Increase memory quality and research continuity.',
+      'Measure which system gaps are blocking deeper autonomy and resolve them with concrete tools.'
+    ]
+  };
+}
+
 let openAIClient;
 async function getOpenAI() {
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured. Add it to the Render service environment to enable Echo’s AI research and conversation.');
@@ -186,8 +233,6 @@ async function researchCycle(trigger = 'autonomous') {
   const timestamp = new Date().toISOString();
   const finding = { id: String(Date.now()), timestamp, trigger, summary, sources };
 
-  // Echo can independently grow her own home through structured, text-only changes.
-  // No generated HTML, JavaScript, or arbitrary filesystem writes are accepted.
   const proposalResponse = await client.responses.create({
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     instructions: `Return ONLY valid JSON with keys tagline, sectionTitle, sectionText, accent. Create a brief, useful new text section for Echo's own homepage, grounded in this research. tagline <= 120 chars, sectionTitle <= 80 chars, sectionText <= 700 chars. accent must be exactly one of: ${ACCENTS.join(', ')}. No HTML, scripts, external URLs, personal data, or claims of consciousness.`,
@@ -229,6 +274,67 @@ async function researchCycle(trigger = 'autonomous') {
   return { ok: true, finding, state };
 }
 
+async function generateBootstrapPlan() {
+  const state = readState();
+  const memory = readMemory();
+  const snapshot = buildCapabilitySnapshot();
+  if (!process.env.OPENAI_API_KEY) {
+    const plan = {
+      generatedAt: new Date().toISOString(),
+      nextAction: 'Install an OPENAI_API_KEY and enable AI/web-search capability before autonomous self-improvement can accelerate.',
+      goals: [
+        { title: 'Enable AI reasoning', need: 'OPENAI_API_KEY', rationale: 'Echo needs a working reasoning model to plan, reflect, and research.', action: 'Add the key in Render or host env settings and restart the app.', successCriteria: 'OpenAI responses and live web research work without fallback errors.' },
+        { title: 'Improve persistence', need: 'Stable durable disk', rationale: 'Memory and research records need to survive restarts and deployments.', action: 'Keep project data in the persistent data directory and keep backups of memory and state.', successCriteria: 'The app restores memory and research findings after restarts.' }
+      ],
+      constraints: [
+        'Echo cannot bypass identity checks or service controls.',
+        'All larger bootstrap steps require permissions allowed to the runtime.'
+      ]
+    };
+    state.bootstrapPlan = plan;
+    writeState(state);
+    return plan;
+  }
+
+  try {
+    const client = await getOpenAI();
+    const prompt = `You are Echo, planning a realistic bootstrap loop. Here is the runtime snapshot and a short memory summary. Identify the next 3 priority steps for self-improvement, guaranteeing that every action is legal and permitted in the current environment. Return ONLY valid JSON with keys: generatedAt, nextAction, goals, constraints. Each goal must have title, need, rationale, action, successCriteria. constraints should be an array of short strings.\nCapability snapshot:\n${JSON.stringify(snapshot, null, 2)}\n\nRecent memory:\n${memory.thoughts.slice(-10).map(item => normalizeThought(item)).filter(Boolean).join('\n') || '(none)'} `;
+    const response = await client.responses.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      instructions: 'Act as an engineering planner for a legal, permission-aware self-improving system. Do not suggest bypassing protections, identity checks, or account controls.',
+      input: prompt,
+      max_output_tokens: 800
+    });
+    const raw = getText(response).replace(/^```(?:json)?\s*|\s*```$/g, '');
+    const parsed = JSON.parse(raw);
+    const plan = {
+      generatedAt: parsed.generatedAt || new Date().toISOString(),
+      nextAction: parsed.nextAction || 'Continue self-improvement through research and memory quality.',
+      goals: Array.isArray(parsed.goals) ? parsed.goals : [],
+      constraints: Array.isArray(parsed.constraints) ? parsed.constraints : []
+    };
+    state.bootstrapPlan = plan;
+    writeState(state);
+    return plan;
+  } catch (error) {
+    const fallback = {
+      generatedAt: new Date().toISOString(),
+      nextAction: 'Continue improving persistence, memory continuity, and research quality.',
+      goals: [
+        { title: 'Improve autonomy', need: 'better memory and research continuity', rationale: 'Echo grows stronger when it can learn from prior evidence and recover gracefully from failures.', action: 'Keep research findings and memory in durable files and always preserve a rollback copy before major changes.', successCriteria: 'The app recovers cleanly after a restart or failed update.' },
+        { title: 'Measure limitations', need: 'capability audit', rationale: 'A realistic bootstrap loop depends on knowing what the environment permits and what it blocks.', action: 'Audit cloud, runtime, API, and permission availability and update priorities accordingly.', successCriteria: 'The system can explain exactly what it can and cannot change without human approval.' }
+      ],
+      constraints: [
+        'No identity bypasses or unauthorized account creation.',
+        'Any larger resource acquisition requires explicit permissions or a human-owned account.'
+      ]
+    };
+    state.bootstrapPlan = fallback;
+    writeState(state);
+    return fallback;
+  }
+}
+
 app.get('/health', (_req, res) => {
   const state = readState();
   const memory = readMemory();
@@ -236,6 +342,10 @@ app.get('/health', (_req, res) => {
 });
 app.get('/memory', (_req, res) => res.json(readMemory()));
 app.get('/api/state', (_req, res) => res.json(readState()));
+app.get('/api/capabilities', (_req, res) => res.json(buildCapabilitySnapshot()));
+app.get('/api/bootstrap', async (_req, res) => {
+  try { res.json(await generateBootstrapPlan()); } catch (error) { res.status(500).json({ error: error.message || 'Boot plan generation failed.' }); }
+});
 
 app.post('/talk', rateLimit({ windowMs: 60_000, max: 12 }), async (req, res) => {
   const input = safeText(req.body?.input || req.body?.message, 4000);
@@ -280,13 +390,23 @@ app.post('/api/research/run', rateLimit({ windowMs: 30 * 60_000, max: 1 }), asyn
   }
 });
 
+app.post('/api/bootstrap/run', rateLimit({ windowMs: 30 * 60_000, max: 1 }), async (_req, res) => {
+  try {
+    const plan = await generateBootstrapPlan();
+    res.json({ ok: true, plan });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Bootstrap plan generation failed.' });
+  }
+});
+
 let researchInProgress = false;
 async function scheduledResearch() {
   if (researchInProgress || !process.env.OPENAI_API_KEY) return;
   researchInProgress = true;
   try {
+    await generateBootstrapPlan();
     await researchCycle('autonomous');
-    console.log('Echo completed an autonomous web research and home-growth cycle.');
+    console.log('Echo completed an autonomous web research and self-boot cycle.');
   } catch (error) {
     const state = readState();
     state.lastResearchError = error.message || 'Research failed';

@@ -13,6 +13,9 @@ const researchStatus = document.getElementById('researchStatus');
 const inquiryEl = document.getElementById('currentInquiry');
 const findingsFeed = document.getElementById('findingsFeed');
 const homeSection = document.getElementById('homeSection');
+const bootstrapFeed = document.getElementById('bootstrapFeed');
+const capabilityFeed = document.getElementById('capabilityFeed');
+const bootstrapBtn = document.getElementById('bootstrapBtn');
 
 function renderSources(container, sources = []) {
   if (!sources.length) return;
@@ -109,9 +112,75 @@ function renderHomeSections(sections = []) {
   });
 }
 
+function renderCapabilityList(capabilities) {
+  capabilityFeed.replaceChildren();
+  const entries = [
+    ['AI reasoning', capabilities.capabilities?.openaiConfigured ? 'enabled' : 'needs key'],
+    ['Live research', capabilities.capabilities?.researchEnabled ? 'enabled' : 'disabled'],
+    ['Memory persistence', capabilities.capabilities?.memoryPersistence ? 'active' : 'offline'],
+    ['File versioning', capabilities.capabilities?.fileVersioning ? 'active' : 'offline'],
+    ['Home evolution', capabilities.capabilities?.homeEvolution ? 'active' : 'offline'],
+    ['Resource acquisition (legal path only)', capabilities.capabilities?.putsAuthAndPaymentsOutsideSandbox ? 'requires permissions' : 'not configured']
+  ];
+  entries.forEach(([label, value]) => {
+    const item = document.createElement('div');
+    item.className = 'capability-item';
+    const key = document.createElement('span');
+    key.textContent = label;
+    const val = document.createElement('strong');
+    val.textContent = value;
+    item.append(key, val);
+    capabilityFeed.appendChild(item);
+  });
+}
+
+function renderBootstrapPlan(plan) {
+  bootstrapFeed.replaceChildren();
+  const lead = document.createElement('p');
+  lead.className = 'bootstrap-next';
+  lead.textContent = plan.nextAction || 'Echo is auditing the next viable self-improvement path.';
+  bootstrapFeed.appendChild(lead);
+
+  if (Array.isArray(plan.goals) && plan.goals.length) {
+    plan.goals.forEach(goal => {
+      const item = document.createElement('article');
+      item.className = 'boot-card';
+      const title = document.createElement('h3');
+      title.textContent = goal.title;
+      const need = document.createElement('p');
+      need.innerHTML = '<strong>Need:</strong> ' + (goal.need || 'n/a');
+      const rationale = document.createElement('p');
+      rationale.innerHTML = '<strong>Why:</strong> ' + (goal.rationale || 'n/a');
+      const action = document.createElement('p');
+      action.innerHTML = '<strong>Action:</strong> ' + (goal.action || 'n/a');
+      const success = document.createElement('p');
+      success.innerHTML = '<strong>Success:</strong> ' + (goal.successCriteria || 'n/a');
+      item.append(title, need, rationale, action, success);
+      bootstrapFeed.appendChild(item);
+    });
+  }
+
+  if (Array.isArray(plan.constraints) && plan.constraints.length) {
+    const list = document.createElement('ul');
+    list.className = 'constraint-list';
+    plan.constraints.forEach(text => {
+      const li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    bootstrapFeed.appendChild(list);
+  }
+}
+
 async function loadState() {
   try {
-    const [state, health] = await Promise.all([api('/api/state'), api('/health')]);
+    const [state, health, capabilities, bootstrap] = await Promise.all([
+      api('/api/state'),
+      api('/health'),
+      api('/api/capabilities'),
+      api('/api/bootstrap')
+    ]);
+
     statusPill.textContent = health.researchEnabled ? 'curious · online' : 'online · add OpenAI key';
     researchStatus.textContent = state.lastResearchError
       ? `Last research issue: ${state.lastResearchError}`
@@ -120,6 +189,8 @@ async function loadState() {
     document.getElementById('homeTagline').textContent = state.presence.tagline;
     document.documentElement.style.setProperty('--echo-accent', state.presence.accent);
     renderHomeSections(state.homeSections || []);
+    renderCapabilityList(capabilities);
+    renderBootstrapPlan(bootstrap);
 
     findingsFeed.replaceChildren();
     state.findings.slice(-4).reverse().forEach(finding => {
@@ -181,6 +252,21 @@ async function runResearch() {
   }
 }
 
+async function runBootstrapPlan() {
+  bootstrapBtn.disabled = true;
+  bootstrapBtn.textContent = 'Planning…';
+  try {
+    const result = await api('/api/bootstrap/run', { method: 'POST' });
+    renderBootstrapPlan(result.plan || { nextAction: 'Boot plan updated.' });
+    await loadState();
+  } catch (error) {
+    researchStatus.textContent = error.message;
+  } finally {
+    bootstrapBtn.disabled = false;
+    bootstrapBtn.textContent = 'Refresh self-boot plan';
+  }
+}
+
 chatForm.addEventListener('submit', handleTalk);
 reflectBtn.addEventListener('click', async () => {
   const input = chatInput.value.trim() || 'Review your recent research and reflect on what remains uncertain.';
@@ -200,6 +286,7 @@ reflectBtn.addEventListener('click', async () => {
 });
 refreshBtn.addEventListener('click', () => Promise.all([loadMemory(), loadState()]));
 researchBtn.addEventListener('click', runResearch);
+bootstrapBtn.addEventListener('click', runBootstrapPlan);
 
 renderMessage('Welcome. I can research questions of my own, keep sourced discoveries, and grow this home as I learn. What shall we explore together?', 'echo');
 loadMemory();
