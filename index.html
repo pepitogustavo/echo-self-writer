@@ -1,209 +1,113 @@
 <!doctype html>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Echo</title>
-<style>
-  body { font: 16px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 760px }
-  h1 { margin: 0 0 1rem }
-  .card { padding: 1rem; border: 1px solid #ddd; border-radius: 12px; margin: 1rem 0 }
-  textarea,input,button { width: 100%; padding: .75rem; margin: .25rem 0 }
-  pre { background: #f7f7f7; padding: .75rem; border-radius: 8px; overflow:auto }
-  #backendStatus { color: #555; font-size: .9rem; margin: -.5rem 0 1rem }
-  #backendHelp { color: #777; font-size: .85rem; margin: 0 0 .75rem }
-</style>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Echo — Self-Writing Memory</title>
+    <meta name="description" content="Echo is an autonomous memory engine that reflects on its thoughts and evolves over time." />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Autonomous memory engine</p>
+          <h1>Echo</h1>
+        </div>
+        <div class="status-pill" id="statusPill">checking…</div>
+      </header>
 
-<h1>Echo — Active Front</h1>
-<p id="backendStatus">Detecting backend…</p>
+      <main class="grid">
+        <section class="panel">
+          <h2>System health</h2>
+          <button id="healthBtn">Check /api/health</button>
+          <pre id="healthOutput">Waiting…</pre>
+        </section>
 
-<div class="card">
-  <h3>Configure backend</h3>
-  <p id="backendHelp">Detected automatically from the current origin, query string, or <code>window.BACKEND_URL</code>. Set a custom base URL or path if needed.</p>
-  <input id="backendInput" type="text" placeholder="Leave blank for same origin" />
-  <button id="btnBackendApply">Use this backend</button>
-  <button id="btnBackendAuto">Auto-detect backend</button>
-</div>
+        <section class="panel">
+          <h2>Reflection loop</h2>
+          <textarea id="promptInput" rows="5" placeholder="Ask Echo to reflect on something...">I am learning to become more aware of myself.</textarea>
+          <button id="reflectBtn">Reflect</button>
+          <pre id="reflectOutput">Waiting…</pre>
+        </section>
+      </main>
+    </div>
 
-<div class="card">
-  <h3>1) Health</h3>
-  <button id="btnHealth">Check backend /health</button>
-  <pre id="outHealth">—</pre>
-</div>
+    <script>
+      const statusPill = document.getElementById('statusPill');
+      const healthBtn = document.getElementById('healthBtn');
+      const reflectBtn = document.getElementById('reflectBtn');
+      const healthOutput = document.getElementById('healthOutput');
+      const reflectOutput = document.getElementById('reflectOutput');
+      const promptInput = document.getElementById('promptInput');
 
-<div class="card">
-  <h3>2) Reflect</h3>
-  <textarea id="msg" rows="4" placeholder="Type something…"></textarea>
-  <button id="btnReflect">Send to backend /reflect</button>
-  <pre id="outReflect">—</pre>
-</div>
+      function setStatus(text, isOk = true) {
+        statusPill.textContent = text;
+        statusPill.classList.toggle('warning', !isOk);
+      }
 
-<script data-backend="/api">
-const backendStatus = document.getElementById('backendStatus');
-const backendInput = document.getElementById('backendInput');
-const outHealth = document.getElementById('outHealth');
-const outReflect = document.getElementById('outReflect');
-const btnHealth = document.getElementById('btnHealth');
-const btnReflect = document.getElementById('btnReflect');
-const btnBackendApply = document.getElementById('btnBackendApply');
-const btnBackendAuto = document.getElementById('btnBackendAuto');
+      function renderJson(data) {
+        try {
+          return JSON.stringify(data, null, 2);
+        } catch {
+          return String(data);
+        }
+      }
 
-const rawConfigured = typeof window.BACKEND_URL === 'string' ? window.BACKEND_URL : '';
-const searchConfigured = new URLSearchParams(window.location.search).get('backend') ?? '';
-const metaConfigured = document.querySelector('meta[name="echo-backend"]')?.content ?? '';
-const scriptConfigured = document.currentScript?.dataset?.backend ?? '';
-const candidateInputs = [rawConfigured, searchConfigured, metaConfigured, scriptConfigured, '', '/api'];
+      async function callApi(path, payload) {
+        const options = payload
+          ? {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }
+          : { method: 'GET' };
 
-const candidates = [];
-const seen = new Set();
-for (const value of candidateInputs) {
-  const normalized = normalizeBase(value);
-  if (normalized === null || seen.has(normalized)) continue;
-  seen.add(normalized);
-  candidates.push(normalized);
-}
+        const response = await fetch(path, options);
+        const text = await response.text();
 
-let resolvedBackend = null;
-let backendDetectionPromise;
-let lastDetectionError = 'backend not detected';
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = text;
+        }
 
-function setStatus(message) {
-  if (backendStatus) backendStatus.textContent = message;
-}
+        if (!response.ok) {
+          throw new Error(typeof parsed === 'string' ? parsed : renderJson(parsed));
+        }
 
-function normalizeBase(value) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  return trimmed.replace(/\/+$/, '');
-}
+        return parsed;
+      }
 
-function joinPath(base, path) {
-  return `${base ?? ''}${path}`;
-}
+      async function checkHealth() {
+        healthOutput.textContent = 'Checking…';
+        try {
+          const result = await callApi('/api/health');
+          healthOutput.textContent = renderJson(result);
+          setStatus('online', true);
+        } catch (error) {
+          healthOutput.textContent = String(error);
+          setStatus('offline', false);
+        }
+      }
 
-function describeBase(base) {
-  if (!base) return 'same origin';
-  if (base === '/api') return 'same origin via /api';
-  return base;
-}
+      async function reflect() {
+        const message = (promptInput.value || '').trim() || 'I am learning to become more aware of myself.';
+        reflectOutput.textContent = 'Echo is reflecting…';
+        try {
+          const result = await callApi('/api/reflect', { message });
+          reflectOutput.textContent = renderJson(result);
+          setStatus('reflecting', true);
+        } catch (error) {
+          reflectOutput.textContent = String(error);
+          setStatus('reflect failed', false);
+        }
+      }
 
-async function probeBackend(base) {
-  const url = joinPath(base, '/health');
-  const response = await fetch(url, { method: 'GET' });
-  if (!response.ok) {
-    throw new Error(`GET ${url} → HTTP ${response.status}`);
-  }
-  return base;
-}
-
-function recordBackend(base, source) {
-  resolvedBackend = base;
-  if (backendInput) backendInput.value = base;
-  setStatus(`Using backend (${source}): ${describeBase(base)}`);
-}
-
-async function detectBackend() {
-  for (const base of candidates) {
-    try {
-      const detected = await probeBackend(base);
-      lastDetectionError = '';
-      recordBackend(detected, 'auto');
-      return detected;
-    } catch (error) {
-      lastDetectionError = error?.message || String(error);
-    }
-  }
-  setStatus('⚠️ Unable to reach backend. Provide a base URL or path.');
-  return null;
-}
-
-async function ensureBackend() {
-  if (resolvedBackend !== null) return resolvedBackend;
-  backendDetectionPromise = backendDetectionPromise ?? detectBackend();
-  const base = await backendDetectionPromise;
-  if (base === null) throw new Error(lastDetectionError || 'No backend reachable');
-  resolvedBackend = base;
-  return base;
-}
-
-function formatBody(raw) {
-  if (!raw) return '(empty)';
-  try {
-    const parsed = JSON.parse(raw);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return raw;
-  }
-}
-
-async function fetchBackend(path, init) {
-  const base = await ensureBackend();
-  return fetch(joinPath(base, path), init);
-}
-
-btnHealth?.addEventListener('click', async () => {
-  if (outHealth) outHealth.textContent = 'checking…';
-  try {
-    const response = await fetchBackend('/health');
-    const text = await response.text();
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text || '(empty)'}`);
-    if (outHealth) outHealth.textContent = text || '(empty)';
-  } catch (error) {
-    if (outHealth) outHealth.textContent = String(error);
-  }
-});
-
-btnReflect?.addEventListener('click', async () => {
-  const textarea = document.getElementById('msg');
-  const body = { message: textarea?.value || 'hello from Echo' };
-  if (outReflect) outReflect.textContent = 'sending…';
-  try {
-    const response = await fetchBackend('/reflect', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const text = await response.text();
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text || '(empty)'}`);
-    if (outReflect) outReflect.textContent = formatBody(text);
-  } catch (error) {
-    if (outReflect) outReflect.textContent = String(error);
-  }
-});
-
-btnBackendApply?.addEventListener('click', async () => {
-  const raw = backendInput?.value ?? '';
-  const normalized = normalizeBase(raw);
-  if (normalized === null) {
-    setStatus('Enter a backend URL or path to continue.');
-    return;
-  }
-
-  try {
-    setStatus('Checking backend…');
-    const detected = await probeBackend(normalized);
-    lastDetectionError = '';
-    recordBackend(detected, 'manual');
-    backendDetectionPromise = Promise.resolve(detected);
-  } catch (error) {
-    lastDetectionError = error?.message || String(error);
-    resolvedBackend = null;
-    backendDetectionPromise = null;
-    setStatus(`❌ ${lastDetectionError}`);
-  }
-});
-
-btnBackendAuto?.addEventListener('click', async () => {
-  resolvedBackend = null;
-  backendDetectionPromise = null;
-  lastDetectionError = 'backend not detected';
-  if (backendInput) backendInput.value = '';
-  setStatus('Detecting backend…');
-  try {
-    await ensureBackend();
-  } catch (error) {
-    setStatus(`⚠️ ${error?.message || String(error)}`);
-  }
-});
-
-ensureBackend().catch(() => {});
-</script>
+      healthBtn.addEventListener('click', checkHealth);
+      reflectBtn.addEventListener('click', reflect);
+      checkHealth();
+    </script>
+  </body>
+</html>

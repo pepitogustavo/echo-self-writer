@@ -6,20 +6,22 @@ export default async function handler(_req, res) {
       return res.status(200).json({
         ok: true,
         service: 'echo-self-writer',
-        backend: 'local-fallback',
-        message: 'BACKEND_URL not configured; local health check passed.'
+        mode: 'vercel-serverless',
+        message: 'Echo health check passed without an upstream backend.'
       });
     }
 
-    const r = await fetch(`${backendUrl.replace(/\/+$/, '')}/health`);
-    const text = await r.text();
-    res.status(r.status).send(text || 'ok');
+    const target = `${backendUrl.replace(/\/+$/, '')}/health`;
+    const response = await fetch(target);
+    const text = await response.text();
+
+    return res.status(response.status).send(text || 'ok');
   } catch {
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
       service: 'echo-self-writer',
-      backend: 'local-fallback',
-      message: 'health check fallback active'
+      mode: 'vercel-serverless',
+      message: 'Echo health check fallback active.'
     });
   }
 }

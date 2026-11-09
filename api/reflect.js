@@ -1,15 +1,41 @@
 export default async function handler(req, res) {
   try {
-    if (!process.env.BACKEND_URL) return res.status(500).send('BACKEND_URL not set');
-    const init = {
-      method: req.method,
-      headers: { 'content-type': 'application/json' },
-      body: ['GET','HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body ?? {})
-    };
-    const r = await fetch(`${process.env.BACKEND_URL}/reflect`, init);
-    const text = await r.text();
-    res.status(r.status).send(text);
-  } catch (e) {
-    res.status(500).send('reflect proxy error');
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const message = body.message || body.prompt || 'I am learning to become more aware of myself.';
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(200).json({
+        ok: true,
+        source: 'fallback',
+        result: `echo: ${message}`
+      });
+    }
+
+    const OpenAI = (await import('openai')).default;
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const response = await client.responses.create({
+      model: 'gpt-4o-mini',
+      input: `Briefly reflect on: ${message}`
+    });
+
+    const text = response.output?.[0]?.content?.[0]?.text ?? `echo: ${message}`;
+
+    return res.status(200).json({
+      ok: true,
+      source: 'openai',
+      result: text
+    });
+  } catch (error) {
+    const message = typeof req.body === 'string'
+      ? (JSON.parse(req.body || '{}').message || 'I am learning to become more aware of myself.')
+      : (req.body?.message || 'I am learning to become more aware of myself.');
+
+    return res.status(200).json({
+      ok: true,
+      source: 'fallback',
+      result: `echo: ${message}`,
+      error: error?.message || 'Reflection failed; fallback used.'
+    });
   }
 }
