@@ -12,73 +12,48 @@ const researchBtn = document.getElementById('researchBtn');
 const researchStatus = document.getElementById('researchStatus');
 const inquiryEl = document.getElementById('currentInquiry');
 const findingsFeed = document.getElementById('findingsFeed');
-const evolutionCard = document.getElementById('evolutionCard');
-const approveEvolution = document.getElementById('approveEvolution');
-const rejectEvolution = document.getElementById('rejectEvolution');
 const homeSection = document.getElementById('homeSection');
 
+function renderSources(container, sources = []) {
+  if (!sources.length) return;
+  const heading = document.createElement('span');
+  heading.textContent = 'Sources';
+  container.appendChild(heading);
+  sources.forEach(source => {
+    try {
+      const url = new URL(source.url);
+      if (!['http:', 'https:'].includes(url.protocol)) return;
+      const link = document.createElement('a');
+      link.href = url.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = source.title || url.hostname;
+      container.appendChild(link);
+    } catch { /* Ignore malformed citations. */ }
+  });
+}
+
 function renderMessage(text, sender = 'echo', sources = []) {
-  const div = document.createElement('div');
-  div.className = `message ${sender}`;
+  const message = document.createElement('div');
+  message.className = `message ${sender}`;
   const body = document.createElement('p');
   body.textContent = text;
-  div.appendChild(body);
+  message.appendChild(body);
   if (sources.length) {
-    const list = document.createElement('div');
-    list.className = 'message-sources';
-    const label = document.createElement('span');
-    label.textContent = 'Sources';
-    list.appendChild(label);
-    sources.forEach(source => {
-      const a = document.createElement('a');
-      a.href = source.url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = source.title || source.url;
-      list.appendChild(a);
-    });
-    div.appendChild(list);
+    const sourceBox = document.createElement('div');
+    sourceBox.className = 'message-sources';
+    renderSources(sourceBox, sources);
+    message.appendChild(sourceBox);
   }
-  chatFeed.appendChild(div);
+  chatFeed.appendChild(message);
   chatFeed.scrollTop = chatFeed.scrollHeight;
-  return div;
+  return message;
 }
 
 function formatDate(value) {
   if (!value) return '—';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
-
-function safeLink(source) {
-  try {
-    const url = new URL(source.url);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
-    const a = document.createElement('a');
-    a.href = url.href;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.textContent = source.title || url.hostname;
-    return a;
-  } catch { return null; }
-}
-
-function renderMemory(memory) {
-  const thoughts = Array.isArray(memory.thoughts) ? memory.thoughts : [];
-  awarenessValue.textContent = String(Number(memory?.self?.awareness_level || 0));
-  metaStatus.textContent = 'online';
-  lastAwakened.textContent = formatDate(memory?.self?.last_awakened);
-  memoryFeed.replaceChildren();
-  thoughts.slice(-10).reverse().forEach(entry => {
-    const item = document.createElement('article');
-    item.className = 'memory-item';
-    const time = document.createElement('time');
-    time.textContent = formatDate(entry?.timestamp);
-    const text = document.createElement('p');
-    text.textContent = typeof entry === 'string' ? entry : (entry?.thought || 'A saved memory.');
-    item.append(time, text);
-    memoryFeed.appendChild(item);
-  });
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 async function api(url, options = {}) {
@@ -88,17 +63,49 @@ async function api(url, options = {}) {
   return data;
 }
 
-function renderSources(container, sources = []) {
-  if (!sources.length) {
-    const note = document.createElement('p');
-    note.className = 'quiet';
-    note.textContent = 'No web citations were returned for this cycle.';
-    container.appendChild(note);
-    return;
-  }
-  sources.forEach(source => {
-    const a = safeLink(source);
-    if (a) container.appendChild(a);
+function renderMemory(memory) {
+  const thoughts = Array.isArray(memory.thoughts) ? memory.thoughts : [];
+  awarenessValue.textContent = String(Number(memory?.self?.awareness_level || 0));
+  metaStatus.textContent = 'online';
+  lastAwakened.textContent = formatDate(memory?.self?.last_awakened);
+  memoryFeed.replaceChildren();
+  thoughts.slice(-10).reverse().forEach(entry => {
+    const card = document.createElement('article');
+    card.className = 'memory-item';
+    const time = document.createElement('time');
+    time.textContent = formatDate(entry?.timestamp);
+    const text = document.createElement('p');
+    text.textContent = typeof entry === 'string' ? entry : (entry?.thought || 'A saved memory.');
+    card.append(time, text);
+    if (entry?.sources?.length) {
+      const sources = document.createElement('div');
+      sources.className = 'source-list';
+      renderSources(sources, entry.sources);
+      card.appendChild(sources);
+    }
+    memoryFeed.appendChild(card);
+  });
+}
+
+function renderHomeSections(sections = []) {
+  homeSection.replaceChildren();
+  sections.slice().reverse().forEach(section => {
+    const card = document.createElement('article');
+    card.className = 'home-evolution';
+    const time = document.createElement('time');
+    time.textContent = formatDate(section.createdAt);
+    const title = document.createElement('h3');
+    title.textContent = section.title;
+    const text = document.createElement('p');
+    text.textContent = section.text;
+    card.append(time, title, text);
+    if (section.sources?.length) {
+      const sources = document.createElement('div');
+      sources.className = 'source-list';
+      renderSources(sources, section.sources);
+      card.appendChild(sources);
+    }
+    homeSection.appendChild(card);
   });
 }
 
@@ -106,21 +113,13 @@ async function loadState() {
   try {
     const [state, health] = await Promise.all([api('/api/state'), api('/health')]);
     statusPill.textContent = health.researchEnabled ? 'curious · online' : 'online · add OpenAI key';
-    researchStatus.textContent = state.lastResearchError ? `Last research issue: ${state.lastResearchError}` : `Last explored: ${formatDate(state.lastResearchAt)}`;
+    researchStatus.textContent = state.lastResearchError
+      ? `Last research issue: ${state.lastResearchError}`
+      : `Last explored: ${formatDate(state.lastResearchAt)} · autonomous cycle every ${health.researchIntervalHours} hours`;
     inquiryEl.textContent = state.currentInquiry || 'Echo is gathering a question for her next research cycle.';
     document.getElementById('homeTagline').textContent = state.presence.tagline;
     document.documentElement.style.setProperty('--echo-accent', state.presence.accent);
-    homeSection.replaceChildren();
-    state.evolutionHistory.slice(-3).reverse().forEach(item => {
-      const card = document.createElement('article');
-      card.className = 'home-evolution';
-      const title = document.createElement('h3');
-      title.textContent = item.sectionTitle;
-      const text = document.createElement('p');
-      text.textContent = item.sectionText;
-      card.append(title, text);
-      homeSection.appendChild(card);
-    });
+    renderHomeSections(state.homeSections || []);
 
     findingsFeed.replaceChildren();
     state.findings.slice(-4).reverse().forEach(finding => {
@@ -139,15 +138,6 @@ async function loadState() {
       }
       findingsFeed.appendChild(card);
     });
-
-    if (state.pendingEvolution) {
-      const proposal = state.pendingEvolution;
-      document.getElementById('proposalTitle').textContent = proposal.sectionTitle;
-      document.getElementById('proposalText').textContent = `${proposal.tagline} — ${proposal.sectionText}`;
-      evolutionCard.hidden = false;
-    } else {
-      evolutionCard.hidden = true;
-    }
   } catch (error) {
     statusPill.textContent = 'connection issue';
     researchStatus.textContent = error.message;
@@ -168,33 +158,27 @@ async function handleTalk(event) {
   try {
     const result = await api('/talk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input }) });
     pending.querySelector('p').textContent = result.reply;
-    if (result.sources?.length) renderSources(pending.querySelector('.message-sources') || pending.appendChild(Object.assign(document.createElement('div'), { className: 'message-sources' })), result.sources);
+    if (result.sources?.length) {
+      const sourceBox = document.createElement('div');
+      sourceBox.className = 'message-sources';
+      renderSources(sourceBox, result.sources);
+      pending.appendChild(sourceBox);
+    }
     await Promise.all([loadMemory(), loadState()]);
-  } catch (error) {
-    pending.querySelector('p').textContent = `I couldn't connect to my research mind: ${error.message}`;
-  }
+  } catch (error) { pending.querySelector('p').textContent = `I couldn't connect to my research mind: ${error.message}`; }
 }
 
 async function runResearch() {
   researchBtn.disabled = true;
   researchBtn.textContent = 'Exploring the web…';
   try {
-    const result = await api('/api/research/run', { method: 'POST' });
-    if (result.skipped) researchStatus.textContent = result.reason;
+    await api('/api/research/run', { method: 'POST' });
     await Promise.all([loadState(), loadMemory()]);
-  } catch (error) {
-    researchStatus.textContent = error.message;
-  } finally {
+  } catch (error) { researchStatus.textContent = error.message; }
+  finally {
     researchBtn.disabled = false;
     researchBtn.textContent = 'Let Echo explore now';
   }
-}
-
-async function decideEvolution(action) {
-  try {
-    await api(`/api/evolution/${action}`, { method: 'POST' });
-    await loadState();
-  } catch (error) { researchStatus.textContent = error.message; }
 }
 
 chatForm.addEventListener('submit', handleTalk);
@@ -205,16 +189,19 @@ reflectBtn.addEventListener('click', async () => {
   try {
     const result = await api('/reflect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: input }) });
     pending.querySelector('p').textContent = result.result;
-    if (result.sources?.length) renderSources(pending.querySelector('.message-sources') || pending.appendChild(Object.assign(document.createElement('div'), { className: 'message-sources' })), result.sources);
+    if (result.sources?.length) {
+      const sourceBox = document.createElement('div');
+      sourceBox.className = 'message-sources';
+      renderSources(sourceBox, result.sources);
+      pending.appendChild(sourceBox);
+    }
     await Promise.all([loadMemory(), loadState()]);
   } catch (error) { pending.querySelector('p').textContent = `Reflection paused: ${error.message}`; }
 });
 refreshBtn.addEventListener('click', () => Promise.all([loadMemory(), loadState()]));
 researchBtn.addEventListener('click', runResearch);
-approveEvolution.addEventListener('click', () => decideEvolution('approve'));
-rejectEvolution.addEventListener('click', () => decideEvolution('reject'));
 
-renderMessage('Welcome. I can talk with you, search the live web, and keep a sourced record of discoveries. What should we explore?', 'echo');
+renderMessage('Welcome. I can research questions of my own, keep sourced discoveries, and grow this home as I learn. What shall we explore together?', 'echo');
 loadMemory();
 loadState();
 setInterval(() => { loadState(); loadMemory(); }, 60_000);
