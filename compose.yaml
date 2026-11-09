@@ -1,0 +1,36 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    # For NVIDIA GPU acceleration, uncomment the following deploy block and
+    # install the NVIDIA Container Toolkit on the host.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  echo:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      ECHO_DATA_DIR: /data
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      OLLAMA_AUTO_PULL: "true"
+      RESEARCH_INTERVAL_HOURS: ${RESEARCH_INTERVAL_HOURS:-6}
+    volumes:
+      - echo_data:/data
+
+volumes:
+  ollama_models:
+  echo_data:

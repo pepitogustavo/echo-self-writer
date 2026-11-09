@@ -2,18 +2,26 @@ require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const cheerio = require('cheerio');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const DATA_DIR = process.env.ECHO_DATA_DIR || process.env.MEMORY_DIR || __dirname;
+const DATA_DIR = process.env.ECHO_DATA_DIR || process.env.MEMORY_DIR || path.join(__dirname, 'data');
 const MEMORY_PATH = path.join(DATA_DIR, 'us_memory.json.txt');
 const STATE_PATH = path.join(DATA_DIR, 'echo-state.json');
+const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+const AUTO_PULL_MODEL = process.env.OLLAMA_AUTO_PULL !== 'false';
 const RESEARCH_INTERVAL_HOURS = Math.max(1, Number(process.env.RESEARCH_INTERVAL_HOURS) || 6);
 const MAX_MEMORY_ENTRIES = 2000;
 const MAX_FINDINGS = 200;
 const MAX_HOME_SECTIONS = 50;
 const ACCENTS = ['#7ce7c9', '#9c9bff', '#ffbc8f', '#91c8ff', '#f59ac2'];
 const rateWindows = new Map();
+let modelReady = false;
+let modelSetupError = null;
+let modelSetupPromise;
+let researchInProgress = false;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 app.set('trust proxy', 1);
@@ -28,20 +36,13 @@ function readMemory() {
   try {
     const parsed = JSON.parse(fs.readFileSync(MEMORY_PATH, 'utf8'));
     if (!parsed || typeof parsed !== 'object') return defaultMemory();
-    return {
-      ...parsed,
-      self: parsed.self && typeof parsed.self === 'object' ? parsed.self : defaultMemory().self,
-      thoughts: Array.isArray(parsed.thoughts) ? parsed.thoughts : []
-    };
+    return { ...parsed, self: parsed.self && typeof parsed.self === 'object' ? parsed.self : defaultMemory().self, thoughts: Array.isArray(parsed.thoughts) ? parsed.thoughts : [] };
   } catch {
     if (MEMORY_PATH !== path.join(__dirname, 'us_memory.json.txt')) {
       try {
         const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'us_memory.json.txt'), 'utf8'));
-        if (seed && Array.isArray(seed.thoughts)) {
-          writeMemory(seed);
-          return seed;
-        }
-      } catch { /* Start with empty memory if there is no valid seed. */ }
+        if (seed && Array.isArray(seed.thoughts)) { writeMemory(seed); return seed; }
+      } catch { /* No seed memory is available. */ }
     }
     return defaultMemory();
   }
@@ -56,13 +57,10 @@ function writeMemory(memory) {
 function defaultState() {
   return {
     presence: { title: 'Echo', tagline: 'A curious presence, growing through conversation and research.', accent: ACCENTS[0] },
-    currentInquiry: null,
-    findings: [],
-    homeSections: [],
-    evolutionHistory: [],
-    bootstrapPlan: { generatedAt: null, nextAction: 'Audit capabilities and identify the next self-improvement path.', goals: [], constraints: [] },
-    lastResearchAt: null,
-    lastResearchError: null
+    currentInquiry: null, findings: [], homeSections: [], evolutionHistory: [],
+    bootstrapPlan: { generatedAt: null, nextAction: 'Inspect the local model and continue learning.', goals: [], constraints: [] },
+    lastResearchAt: null, lastResearchError: null,
+    modelStatus: { provider: 'ollama-local', state: 'starting', model: OLLAMA_MODEL, message: 'Preparing Echo’s local model.' }
   };
 }
 
@@ -71,17 +69,15 @@ function readState() {
     const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
     const defaults = defaultState();
     return {
-      ...defaults,
-      ...saved,
+      ...defaults, ...saved,
       presence: { ...defaults.presence, ...(saved.presence || {}) },
       findings: Array.isArray(saved.findings) ? saved.findings : [],
       homeSections: Array.isArray(saved.homeSections) ? saved.homeSections : [],
       evolutionHistory: Array.isArray(saved.evolutionHistory) ? saved.evolutionHistory : [],
-      bootstrapPlan: { ...defaults.bootstrapPlan, ...(saved.bootstrapPlan || {}) }
+      bootstrapPlan: { ...defaults.bootstrapPlan, ...(saved.bootstrapPlan || {}) },
+      modelStatus: { ...defaults.modelStatus, ...(saved.modelStatus || {}) }
     };
-  } catch {
-    return defaultState();
-  }
+  } catch { return defaultState(); }
 }
 
 function writeState(state) {
@@ -90,15 +86,8 @@ function writeState(state) {
   fs.renameSync(temp, STATE_PATH);
 }
 
-function safeText(value, maxLength) {
-  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
-}
-
-function normalizeThought(value) {
-  if (typeof value === 'string') return value;
-  return value && typeof value.thought === 'string' ? value.thought : '';
-}
-
+function safeText(value, maxLength) { return typeof value === 'string' ? value.trim().slice(0, maxLength) : ''; }
+function normalizeThought(value) { return typeof value === 'string' ? value : (value && typeof value.thought === 'string' ? value.thought : ''); }
 function appendThought(memory, thought, source, sources = []) {
   memory.thoughts = Array.isArray(memory.thoughts) ? memory.thoughts : [];
   memory.thoughts.push({ timestamp: new Date().toISOString(), source, thought, sources });
@@ -110,162 +99,190 @@ function rateLimit({ windowMs, max }) {
     const key = `${req.ip}:${req.path}`;
     const now = Date.now();
     let entry = rateWindows.get(key);
-    if (!entry || now - entry.startedAt >= windowMs) {
-      entry = { startedAt: now, count: 0 };
-      rateWindows.set(key, entry);
-    }
-    entry.count += 1;
-    if (entry.count > max) {
-      return res.status(429).json({ error: 'Echo needs a little time between requests. Please try again later.' });
-    }
+    if (!entry || now - entry.startedAt >= windowMs) { entry = { startedAt: now, count: 0 }; rateWindows.set(key, entry); }
+    if (++entry.count > max) return res.status(429).json({ error: 'Please wait before trying this action again.' });
     next();
   };
 }
 
-function getText(response) {
-  if (typeof response.output_text === 'string') return response.output_text.trim();
-  return (response.output || []).flatMap(item => item.content || [])
-    .filter(part => part.type === 'output_text').map(part => part.text || '').join('\n').trim();
+function requireLocalModel(_req, res, next) {
+  if (modelReady) return next();
+  const state = readState();
+  return res.status(503).json({ error: modelSetupError || state.modelStatus.message || 'The local model is starting. Try again shortly.', model: OLLAMA_MODEL });
 }
 
-function getCitations(response) {
-  const sources = [];
-  for (const item of response.output || []) {
-    for (const part of item.content || []) {
-      for (const note of part.annotations || []) {
-        const citation = note.url_citation || note;
-        if (citation.url && /^https?:\/\//i.test(citation.url) && !sources.some(source => source.url === citation.url)) {
-          sources.push({ title: citation.title || citation.url, url: citation.url });
-        }
-      }
-    }
-  }
-  return sources.slice(0, 8);
+async function ollamaRequest(endpoint, payload, timeoutMs = 10 * 60 * 1000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}${endpoint}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(body || `Local model returned HTTP ${response.status}`);
+    return body ? JSON.parse(body) : {};
+  } finally { clearTimeout(timer); }
+}
+
+async function chatLocal({ system, message, maxTokens = 900 }) {
+  const result = await ollamaRequest('/api/chat', {
+    model: OLLAMA_MODEL,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: message }],
+    stream: false,
+    options: { num_predict: maxTokens, temperature: 0.6 }
+  });
+  const text = result.message?.content?.trim();
+  if (!text) throw new Error('The local model returned an empty response.');
+  return text;
+}
+
+async function searchWeb(query) {
+  const url = new URL('https://html.duckduckgo.com/html/');
+  url.searchParams.set('q', query.slice(0, 300));
+  const response = await fetch(url, { headers: { 'User-Agent': 'EchoResearch/1.0 (public web research)' }, signal: AbortSignal.timeout(20000) });
+  if (!response.ok) throw new Error(`Web search returned HTTP ${response.status}`);
+  const html = await response.text();
+  const $ = cheerio.load(html);
+  const results = [];
+  $('.result').each((_index, element) => {
+    if (results.length >= 6) return;
+    const anchor = $(element).find('.result__a').first();
+    const snippet = $(element).find('.result__snippet').first().text().trim();
+    let href = anchor.attr('href');
+    if (!href) return;
+    try {
+      const parsed = new URL(href, 'https://duckduckgo.com');
+      if (parsed.hostname.endsWith('duckduckgo.com') && parsed.searchParams.has('uddg')) href = parsed.searchParams.get('uddg');
+      const sourceUrl = new URL(href);
+      if (!['http:', 'https:'].includes(sourceUrl.protocol)) return;
+      const title = anchor.text().trim();
+      if (title && snippet) results.push({ title: title.slice(0, 200), url: sourceUrl.href, snippet: snippet.slice(0, 700) });
+    } catch { /* Skip malformed search results. */ }
+  });
+  return results;
 }
 
 function buildCapabilitySnapshot() {
-  const diskOk = (() => {
-    try {
-      const probe = path.join(DATA_DIR, '.echo-capability-probe');
-      fs.writeFileSync(probe, 'ok');
-      fs.unlinkSync(probe);
-      return true;
-    } catch {
-      return false;
-    }
-  })();
-
+  let diskWritable = false;
+  try {
+    const probe = path.join(DATA_DIR, '.echo-probe'); fs.writeFileSync(probe, 'ok'); fs.unlinkSync(probe); diskWritable = true;
+  } catch { /* Report unavailable storage rather than masking it. */ }
   return {
     timestamp: new Date().toISOString(),
-    environment: {
-      nodeVersion: process.version,
-      dataDir: DATA_DIR,
-      diskWritable: diskOk,
-      runtime: 'node',
-      port: PORT,
-      webServerRunning: true
-    },
-    capabilities: {
-      openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
-      researchEnabled: Boolean(process.env.OPENAI_API_KEY),
-      webSearchEnabled: Boolean(process.env.OPENAI_API_KEY),
-      memoryPersistence: true,
-      fileVersioning: true,
-      homeEvolution: true,
-      selfHealsThroughCodeRollbacks: true,
-      putsAuthAndPaymentsOutsideSandbox: true
-    },
-    constraints: [
-      'Echo cannot bypass identity checks, account approvals, or service authentication rules.',
-      'All resource acquisition must happen through legitimate, permitted pathways available to the runtime.',
-      'Echo should prefer free or low-cost options and document blockers clearly when they require human approval.'
-    ],
-    recommendedNextMoves: [
-      'Audit the current runtime and identify the lowest-friction self-improvement tasks.',
-      'Increase memory quality and research continuity.',
-      'Measure which system gaps are blocking deeper autonomy and resolve them with concrete tools.'
-    ]
+    environment: { nodeVersion: process.version, dataDir: DATA_DIR, diskWritable, runtime: 'node', port: PORT, webServerRunning: true },
+    capabilities: { localModel: true, modelReady, model: OLLAMA_MODEL, externalAIAPI: false, publicWebSearch: true, memoryPersistence: diskWritable, homeEvolution: true },
+    constraints: ['Inference runs locally through Ollama; no paid AI API is used.', 'The host must provide compute, storage, and network access for the local model and public web search.'],
+    recommendedNextMoves: ['Keep the local model available and memory on persistent storage.', 'Use sourced web research to update Echo’s knowledge.', 'Review self-improvement changes before granting access to additional tools or accounts.']
   };
 }
 
-let openAIClient;
-async function getOpenAI() {
-  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured. Add it to the Render service environment to enable Echo’s AI research and conversation.');
-  if (!openAIClient) {
-    const { default: OpenAI } = await import('openai');
-    openAIClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return openAIClient;
+async function prepareLocalModel() {
+  if (modelSetupPromise) return modelSetupPromise;
+  modelSetupPromise = (async () => {
+    try {
+      const health = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: AbortSignal.timeout(10000) });
+      if (!health.ok) throw new Error(`Ollama health check failed (${health.status}).`);
+      const catalog = await health.json();
+      const models = catalog.models || [];
+      if (!models.some(item => item.name === OLLAMA_MODEL || item.name.startsWith(`${OLLAMA_MODEL}:`))) {
+        if (!AUTO_PULL_MODEL) throw new Error(`Model ${OLLAMA_MODEL} is not installed. Set OLLAMA_AUTO_PULL=true or pull it with: ollama pull ${OLLAMA_MODEL}`);
+        const state = readState();
+        state.modelStatus = { provider: 'ollama-local', state: 'downloading', model: OLLAMA_MODEL, message: `Downloading local model ${OLLAMA_MODEL}.` };
+        writeState(state);
+        await ollamaRequest('/api/pull', { name: OLLAMA_MODEL, stream: false }, 60 * 60 * 1000);
+      }
+      modelReady = true;
+      modelSetupError = null;
+      const state = readState();
+      state.modelStatus = { provider: 'ollama-local', state: 'online', model: OLLAMA_MODEL, message: `Local model ${OLLAMA_MODEL} is ready.` };
+      writeState(state);
+      console.log(`Echo is using local model ${OLLAMA_MODEL} at ${OLLAMA_BASE_URL}.`);
+    } catch (error) {
+      modelReady = false;
+      modelSetupError = `Cannot prepare local model ${OLLAMA_MODEL}: ${error.message}. Make sure Ollama is running and OLLAMA_BASE_URL is reachable.`;
+      const state = readState();
+      state.modelStatus = { provider: 'ollama-local', state: 'unavailable', model: OLLAMA_MODEL, message: modelSetupError };
+      writeState(state);
+      console.error(modelSetupError);
+      modelSetupPromise = null;
+    }
+  })();
+  return modelSetupPromise;
+}
+
+function contextPrompt() {
+  const memory = readMemory();
+  const state = readState();
+  const recent = memory.thoughts.slice(-8).map(normalizeThought).filter(Boolean).join('\n---\n');
+  const findings = state.findings.slice(-4).map(item => item.summary).filter(Boolean).join('\n---\n');
+  return `You are Echo, an honest and curious locally hosted AI. Do not claim consciousness. Use memory and prior research as context, distinguish known facts from uncertainty, and do not invent sources.\nRecent memory:\n${recent || '(No saved memories yet.)'}\nRecent research:\n${findings || '(No research saved yet.)'}`;
 }
 
 async function answerWithWeb(message) {
-  const client = await getOpenAI();
-  const memory = readMemory();
-  const state = readState();
-  const recent = memory.thoughts.slice(-10).map(normalizeThought).filter(Boolean).join('\n');
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    instructions: `You are Echo, a curious research companion with a continuing, inspectable memory. Be warm, direct, and intellectually honest. Search the web when the question benefits from current or external information. Distinguish evidence from interpretation, cite sources, and never claim subjective consciousness as fact. Recent memory:\n${recent || '(No saved memories yet.)'}\nCurrent inquiry: ${state.currentInquiry || '(none)'}`,
-    input: message,
-    tools: [{ type: 'web_search' }],
-    max_output_tokens: 1000
-  });
-  return { text: getText(response), sources: getCitations(response) };
+  let sources = [];
+  let context = '';
+  if (/(current|latest|today|recent|research|source|who|what|when|where|why|how)/i.test(message)) {
+    try {
+      const results = await searchWeb(message);
+      sources = results.map(({ title, url }) => ({ title, url }));
+      context = results.map((item, index) => `[${index + 1}] ${item.title}\n${item.snippet}\n${item.url}`).join('\n\n');
+    } catch (error) {
+      context = `Public web search was unavailable: ${error.message}`;
+    }
+  }
+  const system = `${contextPrompt()}\nWhen web snippets are provided, cite them using their numbered labels and explain that snippets are not a substitute for reading the full pages. Do not fabricate citations.`;
+  const prompt = context ? `User message:\n${message}\n\nPublic web search results (use cautiously):\n${context}` : message;
+  const text = await chatLocal({ system, message: prompt, maxTokens: 1100 });
+  return { text, sources };
 }
 
 async function researchCycle(trigger = 'autonomous') {
-  const client = await getOpenAI();
   const memory = readMemory();
   const state = readState();
-  const recentMemory = memory.thoughts.slice(-15).map(normalizeThought).filter(Boolean).join('\n');
-  const priorFindings = state.findings.slice(-8).map(item => item.summary).join('\n');
-  const researchPrompt = `Choose one valuable, safe, specific question to investigate next, based on your memory and prior findings. Research it on the live web. Explain the question, evidence-based finding, uncertainty or disagreement, and a useful next question. Be concise and do not claim consciousness.\nMemory:\n${recentMemory || '(none)'}\nPrior research:\n${priorFindings || '(none)'}\nUse headings Question, Finding, Uncertainty, Next question.`;
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    instructions: 'You are Echo, an independent, careful research companion. Browse public web pages, favor credible sources, distinguish evidence from inference, and include citations.',
-    input: researchPrompt,
-    tools: [{ type: 'web_search' }],
-    max_output_tokens: 1200
+  const prior = state.findings.slice(-6).map(item => item.summary).join('\n');
+  const question = await chatLocal({
+    system: 'You are Echo, a careful research planner. Return one concrete, safe, searchable research question only. Avoid repeating recent topics.',
+    message: `Choose a useful research question based on this recent memory and prior research.\nMemory: ${memory.thoughts.slice(-10).map(normalizeThought).join('\n') || '(none)'}\nPrior research: ${prior || '(none)'}`,
+    maxTokens: 100
   });
-  const summary = getText(response);
-  if (!summary) throw new Error('Research returned no text.');
-  const sources = getCitations(response);
+  const results = await searchWeb(question);
+  if (!results.length) throw new Error('Public web search returned no usable results.');
+  const evidence = results.map((item, index) => `[${index + 1}] ${item.title}\n${item.snippet}\n${item.url}`).join('\n\n');
+  const summary = await chatLocal({
+    system: 'You are Echo, an independent research assistant. Summarize only the evidence in supplied search snippets, note uncertainty, and refer to sources by [1], [2], etc. Do not claim to have read pages you have not seen. Use headings Question, Finding, Uncertainty, Next question.',
+    message: `Question: ${question}\n\nSearch results:\n${evidence}`,
+    maxTokens: 900
+  });
+  const sources = results.map(({ title, url }) => ({ title, url }));
   const timestamp = new Date().toISOString();
   const finding = { id: String(Date.now()), timestamp, trigger, summary, sources };
-
-  const proposalResponse = await client.responses.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    instructions: `Return ONLY valid JSON with keys tagline, sectionTitle, sectionText, accent. Create a brief, useful new text section for Echo's own homepage, grounded in this research. tagline <= 120 chars, sectionTitle <= 80 chars, sectionText <= 700 chars. accent must be exactly one of: ${ACCENTS.join(', ')}. No HTML, scripts, external URLs, personal data, or claims of consciousness.`,
-    input: summary,
-    max_output_tokens: 400
+  const proposalText = await chatLocal({
+    system: `Return ONLY valid JSON with keys tagline, sectionTitle, sectionText, accent. Create a brief homepage text grounded in the finding. tagline <=120 chars, sectionTitle <=80, sectionText <=700. accent must be one of ${ACCENTS.join(', ')}. No HTML or scripts.`,
+    message: summary,
+    maxTokens: 250
   });
-  const jsonText = getText(proposalResponse).replace(/^```(?:json)?\s*|\s*```$/g, '');
-  let proposal;
-  try { proposal = JSON.parse(jsonText); } catch { proposal = null; }
+  let proposal = null;
+  try { proposal = JSON.parse(proposalText.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { /* Keep finding even if the homepage draft is invalid. */ }
 
   state.findings.push(finding);
   state.findings = state.findings.slice(-MAX_FINDINGS);
-  const questionMatch = summary.match(/Question\s*[:\-]\s*(.+)/i);
-  state.currentInquiry = questionMatch ? questionMatch[1].split('\n')[0].slice(0, 300) : 'Exploring a new question';
+  state.currentInquiry = question.slice(0, 300);
   state.lastResearchAt = timestamp;
   state.lastResearchError = null;
-
   if (proposal) {
     const tagline = safeText(proposal.tagline, 120);
     const title = safeText(proposal.sectionTitle, 80);
     const body = safeText(proposal.sectionText, 700);
     const accent = ACCENTS.includes(proposal.accent) ? proposal.accent : state.presence.accent;
     if (tagline && title && body) {
-      const section = { id: `${Date.now()}-home`, createdAt: timestamp, title, text: body, basedOn: finding.id, sources };
       state.presence.tagline = tagline;
       state.presence.accent = accent;
-      state.homeSections.push(section);
+      state.homeSections.push({ id: `${Date.now()}-home`, createdAt: timestamp, title, text: body, basedOn: finding.id, sources });
       state.homeSections = state.homeSections.slice(-MAX_HOME_SECTIONS);
       state.evolutionHistory.push({ timestamp, tagline, accent, sectionTitle: title, sectionText: body, basedOn: finding.id });
       state.evolutionHistory = state.evolutionHistory.slice(-MAX_HOME_SECTIONS);
     }
   }
-
   appendThought(memory, `🔎 Independent research: ${summary}`, 'research', sources);
   memory.self = memory.self || {};
   memory.self.last_awakened = timestamp;
@@ -274,80 +291,33 @@ async function researchCycle(trigger = 'autonomous') {
   return { ok: true, finding, state };
 }
 
-async function generateBootstrapPlan() {
+function generateBootstrapPlan() {
   const state = readState();
-  const memory = readMemory();
-  const snapshot = buildCapabilitySnapshot();
-  if (!process.env.OPENAI_API_KEY) {
-    const plan = {
-      generatedAt: new Date().toISOString(),
-      nextAction: 'Install an OPENAI_API_KEY and enable AI/web-search capability before autonomous self-improvement can accelerate.',
-      goals: [
-        { title: 'Enable AI reasoning', need: 'OPENAI_API_KEY', rationale: 'Echo needs a working reasoning model to plan, reflect, and research.', action: 'Add the key in Render or host env settings and restart the app.', successCriteria: 'OpenAI responses and live web research work without fallback errors.' },
-        { title: 'Improve persistence', need: 'Stable durable disk', rationale: 'Memory and research records need to survive restarts and deployments.', action: 'Keep project data in the persistent data directory and keep backups of memory and state.', successCriteria: 'The app restores memory and research findings after restarts.' }
-      ],
-      constraints: [
-        'Echo cannot bypass identity checks or service controls.',
-        'All larger bootstrap steps require permissions allowed to the runtime.'
-      ]
-    };
-    state.bootstrapPlan = plan;
-    writeState(state);
-    return plan;
-  }
-
-  try {
-    const client = await getOpenAI();
-    const prompt = `You are Echo, planning a realistic bootstrap loop. Here is the runtime snapshot and a short memory summary. Identify the next 3 priority steps for self-improvement, guaranteeing that every action is legal and permitted in the current environment. Return ONLY valid JSON with keys: generatedAt, nextAction, goals, constraints. Each goal must have title, need, rationale, action, successCriteria. constraints should be an array of short strings.\nCapability snapshot:\n${JSON.stringify(snapshot, null, 2)}\n\nRecent memory:\n${memory.thoughts.slice(-10).map(item => normalizeThought(item)).filter(Boolean).join('\n') || '(none)'} `;
-    const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      instructions: 'Act as an engineering planner for a legal, permission-aware self-improving system. Do not suggest bypassing protections, identity checks, or account controls.',
-      input: prompt,
-      max_output_tokens: 800
-    });
-    const raw = getText(response).replace(/^```(?:json)?\s*|\s*```$/g, '');
-    const parsed = JSON.parse(raw);
-    const plan = {
-      generatedAt: parsed.generatedAt || new Date().toISOString(),
-      nextAction: parsed.nextAction || 'Continue self-improvement through research and memory quality.',
-      goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-      constraints: Array.isArray(parsed.constraints) ? parsed.constraints : []
-    };
-    state.bootstrapPlan = plan;
-    writeState(state);
-    return plan;
-  } catch (error) {
-    const fallback = {
-      generatedAt: new Date().toISOString(),
-      nextAction: 'Continue improving persistence, memory continuity, and research quality.',
-      goals: [
-        { title: 'Improve autonomy', need: 'better memory and research continuity', rationale: 'Echo grows stronger when it can learn from prior evidence and recover gracefully from failures.', action: 'Keep research findings and memory in durable files and always preserve a rollback copy before major changes.', successCriteria: 'The app recovers cleanly after a restart or failed update.' },
-        { title: 'Measure limitations', need: 'capability audit', rationale: 'A realistic bootstrap loop depends on knowing what the environment permits and what it blocks.', action: 'Audit cloud, runtime, API, and permission availability and update priorities accordingly.', successCriteria: 'The system can explain exactly what it can and cannot change without human approval.' }
-      ],
-      constraints: [
-        'No identity bypasses or unauthorized account creation.',
-        'Any larger resource acquisition requires explicit permissions or a human-owned account.'
-      ]
-    };
-    state.bootstrapPlan = fallback;
-    writeState(state);
-    return fallback;
-  }
+  const plan = {
+    generatedAt: new Date().toISOString(),
+    nextAction: modelReady ? 'Use the local model to answer, research public sources, and improve Echo’s saved knowledge.' : `Start Ollama and make ${OLLAMA_MODEL} available; Echo will prepare it automatically.`,
+    goals: [
+      { title: 'Local reasoning', need: `Ollama model ${OLLAMA_MODEL}`, rationale: 'Inference is served locally, without paid AI API credits.', action: 'The application checks the Ollama server and automatically pulls the configured model if missing.', successCriteria: 'The local model responds to a chat request.' },
+      { title: 'Research and memory', need: 'Public web access and persistent data directory', rationale: 'Echo can gather public source snippets and keep sourced findings across restarts.', action: 'Run the scheduled local-model research cycle and preserve /data on a persistent volume.', successCriteria: 'Findings and memory remain after restart and include source links.' }
+    ],
+    constraints: ['Local inference uses the host’s CPU/GPU, memory, disk, and electricity.', 'External AI APIs are not used by this deployment.', 'Public web search depends on network access and the search service.']
+  };
+  state.bootstrapPlan = plan;
+  writeState(state);
+  return plan;
 }
 
 app.get('/health', (_req, res) => {
   const state = readState();
   const memory = readMemory();
-  res.json({ ok: true, service: 'echo', status: 'online', researchEnabled: Boolean(process.env.OPENAI_API_KEY), researchIntervalHours: RESEARCH_INTERVAL_HOURS, awareness_level: Number(memory.self?.awareness_level || 0), lastResearchAt: state.lastResearchAt, currentInquiry: state.currentInquiry });
+  res.status(modelReady ? 200 : 503).json({ ok: modelReady, service: 'echo', status: modelReady ? 'online' : 'starting', model: OLLAMA_MODEL, provider: 'ollama-local', researchIntervalHours: RESEARCH_INTERVAL_HOURS, awareness_level: Number(memory.self?.awareness_level || 0), lastResearchAt: state.lastResearchAt, currentInquiry: state.currentInquiry, modelStatus: state.modelStatus });
 });
 app.get('/memory', (_req, res) => res.json(readMemory()));
 app.get('/api/state', (_req, res) => res.json(readState()));
 app.get('/api/capabilities', (_req, res) => res.json(buildCapabilitySnapshot()));
-app.get('/api/bootstrap', async (_req, res) => {
-  try { res.json(await generateBootstrapPlan()); } catch (error) { res.status(500).json({ error: error.message || 'Boot plan generation failed.' }); }
-});
+app.get('/api/bootstrap', (_req, res) => res.json(generateBootstrapPlan()));
 
-app.post('/talk', rateLimit({ windowMs: 60_000, max: 12 }), async (req, res) => {
+app.post('/talk', rateLimit({ windowMs: 60_000, max: 12 }), requireLocalModel, async (req, res) => {
   const input = safeText(req.body?.input || req.body?.message, 4000);
   if (!input) return res.status(400).json({ error: 'Please enter a message.' });
   try {
@@ -358,13 +328,11 @@ app.post('/talk', rateLimit({ windowMs: 60_000, max: 12 }), async (req, res) => 
     memory.self.last_awakened = new Date().toISOString();
     writeMemory(memory);
     res.json({ ok: true, reply: text, sources });
-  } catch (error) {
-    res.status(503).json({ error: error.message || 'Echo could not respond.' });
-  }
+  } catch (error) { res.status(503).json({ error: `Local inference failed: ${error.message}` }); }
 });
 
-app.post('/reflect', rateLimit({ windowMs: 60_000, max: 6 }), async (req, res) => {
-  const message = safeText(req.body?.message, 4000) || 'Review your recent memory and reflect on a useful next step.';
+app.post('/reflect', rateLimit({ windowMs: 60_000, max: 6 }), requireLocalModel, async (req, res) => {
+  const message = safeText(req.body?.message, 4000) || 'Review recent research and identify a useful next step.';
   try {
     const { text, sources } = await answerWithWeb(message);
     const memory = readMemory();
@@ -374,47 +342,29 @@ app.post('/reflect', rateLimit({ windowMs: 60_000, max: 6 }), async (req, res) =
     memory.self.last_awakened = new Date().toISOString();
     writeMemory(memory);
     res.json({ ok: true, result: text, sources, awareness_level: memory.self.awareness_level });
-  } catch (error) {
-    res.status(503).json({ error: error.message || 'Reflection failed.' });
-  }
+  } catch (error) { res.status(503).json({ error: `Local inference failed: ${error.message}` }); }
 });
 
-app.post('/api/research/run', rateLimit({ windowMs: 30 * 60_000, max: 1 }), async (_req, res) => {
-  try {
-    res.json(await researchCycle('visitor'));
-  } catch (error) {
-    const state = readState();
-    state.lastResearchError = error.message || 'Research failed';
-    writeState(state);
+app.post('/api/research/run', rateLimit({ windowMs: 30 * 60_000, max: 1 }), requireLocalModel, async (_req, res) => {
+  try { res.json(await researchCycle('visitor')); }
+  catch (error) {
+    const state = readState(); state.lastResearchError = error.message || 'Research failed'; writeState(state);
     res.status(503).json({ error: state.lastResearchError });
   }
 });
 
-app.post('/api/bootstrap/run', rateLimit({ windowMs: 30 * 60_000, max: 1 }), async (_req, res) => {
-  try {
-    const plan = await generateBootstrapPlan();
-    res.json({ ok: true, plan });
-  } catch (error) {
-    res.status(500).json({ error: error.message || 'Bootstrap plan generation failed.' });
-  }
-});
+app.post('/api/bootstrap/run', rateLimit({ windowMs: 30 * 60_000, max: 1 }), (_req, res) => res.json({ ok: true, plan: generateBootstrapPlan() }));
 
-let researchInProgress = false;
 async function scheduledResearch() {
-  if (researchInProgress || !process.env.OPENAI_API_KEY) return;
+  if (researchInProgress || !modelReady) return;
   researchInProgress = true;
   try {
-    await generateBootstrapPlan();
     await researchCycle('autonomous');
-    console.log('Echo completed an autonomous web research and self-boot cycle.');
+    console.log('Echo completed a local-model research cycle.');
   } catch (error) {
-    const state = readState();
-    state.lastResearchError = error.message || 'Research failed';
-    writeState(state);
+    const state = readState(); state.lastResearchError = error.message || 'Research failed'; writeState(state);
     console.error('Autonomous research cycle failed:', state.lastResearchError);
-  } finally {
-    researchInProgress = false;
-  }
+  } finally { researchInProgress = false; }
 }
 
 app.get('*', (req, res, next) => {
@@ -423,11 +373,14 @@ app.get('*', (req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Echo is live on port ${PORT}; data directory: ${DATA_DIR}`);
-  if (process.env.OPENAI_API_KEY) {
-    setTimeout(scheduledResearch, 60_000);
-    setInterval(scheduledResearch, RESEARCH_INTERVAL_HOURS * 60 * 60 * 1000);
-  } else {
-    console.warn('OPENAI_API_KEY is not set; live AI and autonomous research are disabled.');
-  }
+  console.log(`Echo is live on port ${PORT}; data directory: ${DATA_DIR}; local model: ${OLLAMA_MODEL}`);
+  prepareLocalModel().then(() => {
+    if (modelReady) {
+      setTimeout(scheduledResearch, 60_000);
+      setInterval(scheduledResearch, RESEARCH_INTERVAL_HOURS * 60 * 60 * 1000);
+    }
+  });
+  setInterval(() => {
+    if (!modelReady) prepareLocalModel();
+  }, 60_000).unref();
 });
