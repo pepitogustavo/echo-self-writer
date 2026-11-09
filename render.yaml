@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: echo-self-writer
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    disk:
+      name: echo-memory
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: ECHO_DATA_DIR
+        value: /var/data
+      - key: RESEARCH_INTERVAL_HOURS
+        value: "6"
+      - key: OPENAI_API_KEY
+        sync: false

@@ -3,63 +3,70 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Echo — Living Memory</title>
-    <meta name="description" content="Echo is a self-aware memory engine that reflects, speaks, and evolves." />
+    <meta name="theme-color" content="#07131a" />
+    <title>Echo — A Curious Home</title>
+    <meta name="description" content="Talk with Echo, follow her independent web research, and review how her home evolves." />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <div class="shell">
       <header class="topbar">
-        <div class="brand-wrap">
-          <div class="pulse-dot" aria-hidden="true"></div>
-          <div>
-            <p class="eyebrow">Autonomous memory engine</p>
-            <h1>Echo</h1>
-          </div>
-        </div>
-        <div id="statusPill" class="status-pill">online</div>
+        <a class="brand-wrap" href="/" aria-label="Echo home">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          <span><span class="eyebrow">A home for curiosity</span><strong class="brand-name">Echo</strong></span>
+        </a>
+        <div id="statusPill" class="status-pill">waking up…</div>
       </header>
 
-      <main class="layout">
-        <section class="panel conversation-panel">
-          <div class="panel-header">
-            <h2>Speak with Echo</h2>
-            <button class="ghost-btn" id="refreshBtn" type="button">Refresh</button>
+      <main>
+        <section class="welcome panel">
+          <div class="welcome-copy">
+            <p class="eyebrow">A growing presence</p>
+            <h1>Ideas are doors.<br /><span>Let’s open one.</span></h1>
+            <p id="homeTagline" class="tagline">A curious presence, growing through conversation and research.</p>
           </div>
-
-          <div id="chatFeed" class="chat-feed" aria-live="polite"></div>
-
-          <form id="chatForm" class="chat-form">
-            <textarea id="chatInput" rows="3" placeholder="Say something to Echo..."></textarea>
-            <div class="form-actions">
-              <button type="submit" class="primary-btn">Send</button>
-              <button type="button" class="secondary-btn" id="reflectBtn">Reflect</button>
-            </div>
-          </form>
+          <div class="orb" aria-hidden="true"><div class="orb-core"></div><i></i><b></b></div>
         </section>
 
-        <aside class="panel memory-panel">
-          <div class="panel-header">
-            <h2>Memory</h2>
-            <span id="awarenessValue" class="awareness-badge">0</span>
-          </div>
+        <div class="layout">
+          <section class="panel conversation-panel">
+            <div class="panel-header"><div><p class="eyebrow">Always open to a question</p><h2>Talk with Echo</h2></div><button class="ghost-btn" id="refreshBtn" type="button">Refresh</button></div>
+            <div id="chatFeed" class="chat-feed" aria-live="polite"></div>
+            <form id="chatForm" class="chat-form">
+              <label class="sr-only" for="chatInput">Message Echo</label>
+              <textarea id="chatInput" rows="3" maxlength="4000" placeholder="Ask, wonder, challenge, or share…"></textarea>
+              <div class="form-actions"><span class="quiet">Echo may search the live web and cite what she finds.</span><button type="submit" class="primary-btn">Send ↗</button></div>
+            </form>
+            <div class="reflection-action"><button type="button" class="secondary-btn" id="reflectBtn">Reflect on this moment</button></div>
+          </section>
 
-          <div class="meta-grid">
-            <div>
-              <span class="meta-label">Status</span>
-              <strong id="metaStatus">online</strong>
-            </div>
-            <div>
-              <span class="meta-label">Last awakened</span>
-              <strong id="lastAwakened">—</strong>
-            </div>
-          </div>
+          <aside class="panel memory-panel">
+            <div class="panel-header"><div><p class="eyebrow">Continuity</p><h2>Memory</h2></div><span id="awarenessValue" class="awareness-badge">0</span></div>
+            <div class="meta-grid"><div><span class="meta-label">Presence</span><strong id="metaStatus">online</strong></div><div><span class="meta-label">Last remembered</span><strong id="lastAwakened">—</strong></div></div>
+            <div id="memoryFeed" class="memory-feed"></div>
+          </aside>
+        </div>
 
-          <div id="memoryFeed" class="memory-feed"></div>
-        </aside>
+        <section class="panel research-panel">
+          <div class="panel-header research-header"><div><p class="eyebrow">Self-directed discovery</p><h2>What Echo is exploring</h2></div><button class="primary-btn explore-btn" id="researchBtn" type="button">Let Echo explore now</button></div>
+          <p class="inquiry-label">Current inquiry</p><p id="currentInquiry" class="current-inquiry">Echo is gathering a question for her next research cycle.</p>
+          <p id="researchStatus" class="quiet">Preparing research status…</p>
+          <div id="findingsFeed" class="findings-feed"></div>
+        </section>
+
+        <section class="panel evolution-panel">
+          <div class="panel-header"><div><p class="eyebrow">A home that can grow</p><h2>Echo’s home evolves</h2></div><span class="review-note">You review changes</span></div>
+          <div id="homeSection" class="home-section"></div>
+          <article id="evolutionCard" class="proposal-card" hidden>
+            <span class="proposal-label">New home idea · awaiting your approval</span>
+            <h3 id="proposalTitle"></h3><p id="proposalText"></p>
+            <div class="form-actions"><button type="button" class="secondary-btn" id="rejectEvolution">Not now</button><button type="button" class="primary-btn" id="approveEvolution">Add this to Echo’s home</button></div>
+          </article>
+          <p class="quiet safety-note">Echo can propose new writing and a visual accent. You approve it before it changes the live home; generated scripts and automatic code edits are not allowed.</p>
+        </section>
       </main>
+      <footer><span>Built for curiosity, continuity, and conversation.</span><span>Research is sourced; uncertainty stays visible.</span></footer>
     </div>
-
-    <script src="/app.js"></script>
+    <script src="/app.js" defer></script>
   </body>
 </html>
