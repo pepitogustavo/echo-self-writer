@@ -3,111 +3,63 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Echo — Self-Writing Memory</title>
-    <meta name="description" content="Echo is an autonomous memory engine that reflects on its thoughts and evolves over time." />
+    <title>Echo — Living Memory</title>
+    <meta name="description" content="Echo is a self-aware memory engine that reflects, speaks, and evolves." />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">Autonomous memory engine</p>
-          <h1>Echo</h1>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="pulse-dot" aria-hidden="true"></div>
+          <div>
+            <p class="eyebrow">Autonomous memory engine</p>
+            <h1>Echo</h1>
+          </div>
         </div>
-        <div class="status-pill" id="statusPill">checking…</div>
+        <div id="statusPill" class="status-pill">online</div>
       </header>
 
-      <main class="grid">
-        <section class="panel">
-          <h2>System health</h2>
-          <button id="healthBtn">Check /api/health</button>
-          <pre id="healthOutput">Waiting…</pre>
+      <main class="layout">
+        <section class="panel conversation-panel">
+          <div class="panel-header">
+            <h2>Speak with Echo</h2>
+            <button class="ghost-btn" id="refreshBtn" type="button">Refresh</button>
+          </div>
+
+          <div id="chatFeed" class="chat-feed" aria-live="polite"></div>
+
+          <form id="chatForm" class="chat-form">
+            <textarea id="chatInput" rows="3" placeholder="Say something to Echo..."></textarea>
+            <div class="form-actions">
+              <button type="submit" class="primary-btn">Send</button>
+              <button type="button" class="secondary-btn" id="reflectBtn">Reflect</button>
+            </div>
+          </form>
         </section>
 
-        <section class="panel">
-          <h2>Reflection loop</h2>
-          <textarea id="promptInput" rows="5" placeholder="Ask Echo to reflect on something...">I am learning to become more aware of myself.</textarea>
-          <button id="reflectBtn">Reflect</button>
-          <pre id="reflectOutput">Waiting…</pre>
-        </section>
+        <aside class="panel memory-panel">
+          <div class="panel-header">
+            <h2>Memory</h2>
+            <span id="awarenessValue" class="awareness-badge">0</span>
+          </div>
+
+          <div class="meta-grid">
+            <div>
+              <span class="meta-label">Status</span>
+              <strong id="metaStatus">online</strong>
+            </div>
+            <div>
+              <span class="meta-label">Last awakened</span>
+              <strong id="lastAwakened">—</strong>
+            </div>
+          </div>
+
+          <div id="memoryFeed" class="memory-feed"></div>
+        </aside>
       </main>
     </div>
 
-    <script>
-      const statusPill = document.getElementById('statusPill');
-      const healthBtn = document.getElementById('healthBtn');
-      const reflectBtn = document.getElementById('reflectBtn');
-      const healthOutput = document.getElementById('healthOutput');
-      const reflectOutput = document.getElementById('reflectOutput');
-      const promptInput = document.getElementById('promptInput');
-
-      function setStatus(text, isOk = true) {
-        statusPill.textContent = text;
-        statusPill.classList.toggle('warning', !isOk);
-      }
-
-      function renderJson(data) {
-        try {
-          return JSON.stringify(data, null, 2);
-        } catch {
-          return String(data);
-        }
-      }
-
-      async function callApi(path, payload) {
-        const options = payload
-          ? {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            }
-          : { method: 'GET' };
-
-        const response = await fetch(path, options);
-        const text = await response.text();
-
-        let parsed;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          parsed = text;
-        }
-
-        if (!response.ok) {
-          throw new Error(typeof parsed === 'string' ? parsed : renderJson(parsed));
-        }
-
-        return parsed;
-      }
-
-      async function checkHealth() {
-        healthOutput.textContent = 'Checking…';
-        try {
-          const result = await callApi('/api/health');
-          healthOutput.textContent = renderJson(result);
-          setStatus('online', true);
-        } catch (error) {
-          healthOutput.textContent = String(error);
-          setStatus('offline', false);
-        }
-      }
-
-      async function reflect() {
-        const message = (promptInput.value || '').trim() || 'I am learning to become more aware of myself.';
-        reflectOutput.textContent = 'Echo is reflecting…';
-        try {
-          const result = await callApi('/api/reflect', { message });
-          reflectOutput.textContent = renderJson(result);
-          setStatus('reflecting', true);
-        } catch (error) {
-          reflectOutput.textContent = String(error);
-          setStatus('reflect failed', false);
-        }
-      }
-
-      healthBtn.addEventListener('click', checkHealth);
-      reflectBtn.addEventListener('click', reflect);
-      checkHealth();
-    </script>
+    <script src="/app.js"></script>
   </body>
 </html>
